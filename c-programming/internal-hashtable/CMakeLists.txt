@@ -1,4 +1,5 @@
 cmake_minimum_required (VERSION 2.6)
 project (main C)
-add_executable(main main.c)
+#add_executable(main main.c)
+add_library(inthash SHARED main.c)
 SET(CMAKE_CXX_COMPILER "g++")
