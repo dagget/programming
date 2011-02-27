@@ -1,0 +1,3 @@
+gcc -Wall -g -o main main.c
+export MALLOC_TRACE=./out; ./main
+mtrace ./main ./out

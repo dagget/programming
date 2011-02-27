@@ -1,0 +1,4 @@
+cmake_minimum_required (VERSION 2.6)
+project (main C)
+add_executable(main main.c)
+SET(CMAKE_CXX_COMPILER "g++")
