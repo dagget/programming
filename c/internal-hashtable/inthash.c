@@ -12,15 +12,15 @@
 static struct item hashtable[HASHSIZ];
 static int hhash(int key)
 {
-   int position = val % HASHSIZ;
+   int position = key % HASHSIZ;
 
    if ( 0 <= position <= HASHSIZ)
-      return &hashtable[val % HASHSIZ];
+      return &hashtable[key % HASHSIZ];
    else
       return NULL;
 }
 
-static int hrehash(int position, )
+static int hrehash(int position, int key)
 {
    return position++;
 }
