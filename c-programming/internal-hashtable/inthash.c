@@ -9,28 +9,51 @@
  * lists.
  */
 
-#define HASHSIZ 20
-
-struct item {
-   int val;
-};
-
 static struct item hashtable[HASHSIZ];
+static int hhash(int key)
+{
+   int position = val % HASHSIZ;
 
-int hinsert(void)
+   if ( 0 <= position <= HASHSIZ)
+      return &hashtable[val % HASHSIZ];
+   else
+      return NULL;
+}
+
+static int hrehash(int position, )
+{
+   return position++;
+}
+
+int hinsert(int key, int value)
+{
+   struct item *hitem = NULL;
+
+   /* item is already there */
+   if ((hitem = hlookup(key)) != NULL)
+      return -1;
+
+   /* position is free, use it */
+   if (((hitem = hhash(key)) != NULL) && (hitem->deleted == 1)) {
+      hitem->val     = value;
+      hitem->deleted = 0;
+      return 0;
+   }
+
+   /* seek a free position */
+   while (rehash()
+   
+   return -1;
+}
+
+int hremove(int key)
 {
    return 0;
 }
 
-int hremove(void)
+struct item *hlookup(int key)
 {
-   return 0;
+   return NULL;
 }
-
-int hlookup(void)
-{
-   return 0;
-}
-
 
 //   mtrace();

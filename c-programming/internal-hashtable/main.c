@@ -15,17 +15,17 @@ int clean_suite1(void)
 
 void testhinsert(void)
 {
-   CU_ASSERT(0 == hinsert());
+   CU_ASSERT(0 == hinsert(1,1));
 }
 
 void testhlookup(void)
 {
-   CU_ASSERT(0 == hlookup());
+   CU_ASSERT(NULL != hlookup(1));
 }
 
 void testhremove(void)
 {
-   CU_ASSERT(0 == hremove());
+   CU_ASSERT(0 == hremove(1));
 }
 
 int main(int argc, char **argv)
