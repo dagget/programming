@@ -44,7 +44,7 @@ int hinsert(int key, int value)
 			return 0;
 		}
 		else {
-			while ((position = rehash(key)) != -1) {
+			while ((position = rehash(position, key)) != -1) {
 				if (hashtable[position].deleted == 1){
 					hashtable[position].deleted = 0;
 					hashtable[position].value = value;
@@ -80,7 +80,7 @@ int hlookup(int key, int *value)
 			}
 		}
 		else
-			while ((position = rehash(key)) != -1) {
+			while ((position = rehash(position, key)) != -1) {
 				if (hashtable[position].key == key) {
 					if (hashtable[position].deleted)
 						return -1;

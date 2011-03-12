@@ -1,8 +1,9 @@
 #define HASHSIZ 20
 
 struct item {
-   int val;
-   short deleted;
+	int key;
+	int value;
+	short deleted;
 };
 
 static struct item hashtable[HASHSIZ];
