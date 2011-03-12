@@ -5,6 +5,8 @@ struct item {
    short deleted;
 };
 
+static struct item hashtable[HASHSIZ];
+
 int hinsert(int key, int value);
-struct item *hlookup(int key);
+int hlookup(int key, int *value);
 int hremove(int key);

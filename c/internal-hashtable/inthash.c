@@ -9,8 +9,7 @@
  * lists.
  */
 
-static struct item hashtable[HASHSIZ];
-static int hhash(int key)
+static int hash(int key)
 {
 	int position = key % HASHSIZ;
 
@@ -20,30 +19,40 @@ static int hhash(int key)
 		return -1;
 }
 
-static int hrehash(int position, int key)
+static int rehash(int position, int key)
 {
 	return position++;
 }
 
 int hinsert(int key, int value)
 {
-	int retval = 0;
-	int val    = 0;
+	int position = 0;
+	int val      = 0;
 
 	/* item is already there */
-	if ((retval = hlookup(key, &val)) == 1)
-		return -1;
+	if (hlookup(key, &val) == 0)
+		if (val == value)
+			return 0;
+		else
+			return -1;
 
-	/* position is free, use it */
-	if (((hitem = hhash(key)) != NULL) && (hitem->deleted == 1)) {
-		hitem->val     = value;
-		hitem->deleted = 0;
-		return 0;
-	}
+	/* seek free position and use it */
+	if ((position = hash(key)) != -1) {
+		if (hashtable[position].deleted == 1){
+			hashtable[position].deleted = 0;
+			hashtable[position].value = value;
+			return 0;
+		}
+		else {
+			while ((position = rehash(key)) != -1) {
+				if (hashtable[position].deleted == 1){
+					hashtable[position].deleted = 0;
+					hashtable[position].value = value;
+					return 0;
+				}
+			}
+		}
 
-	/* seek a free position */
-	while (rehash())
-	{
 	}
 
 	return -1;
@@ -60,29 +69,28 @@ int hlookup(int key, int *value)
 
 	if (value == NULL)
 		return -1;
-	else
-		if ((position = hash(key)) == -1)
-			return -1;
 
-	if (hashtable[position].key == key){
-		if (hashtable[position].deleted)
-			return -1;
-		else {
-			*value = hashtable[position].value;
-			return 0;
-		}
-	}
-	else
-		while ((position = rehash(key)) != -1) {
-			if (hashtable[position].key == key) {
-				if (hashtable[position].deleted)
-					return -1;
-				else {
-					*value = hashtable[position].value;
-					return 0;
-				}
+	if ((position = hash(key)) != -1) {
+		if (hashtable[position].key == key){
+			if (hashtable[position].deleted)
+				return -1;
+			else {
+				*value = hashtable[position].value;
+				return 0;
 			}
 		}
+		else
+			while ((position = rehash(key)) != -1) {
+				if (hashtable[position].key == key) {
+					if (hashtable[position].deleted)
+						return -1;
+					else {
+						*value = hashtable[position].value;
+						return 0;
+					}
+				}
+			}
+	}
 
 	return -1;
 }
