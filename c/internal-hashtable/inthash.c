@@ -12,48 +12,79 @@
 static struct item hashtable[HASHSIZ];
 static int hhash(int key)
 {
-   int position = key % HASHSIZ;
+	int position = key % HASHSIZ;
 
-   if ( 0 <= position <= HASHSIZ)
-      return &hashtable[key % HASHSIZ];
-   else
-      return NULL;
+	if ( 0 <= position <= HASHSIZ)
+		return position;
+	else
+		return -1;
 }
 
 static int hrehash(int position, int key)
 {
-   return position++;
+	return position++;
 }
 
 int hinsert(int key, int value)
 {
-   struct item *hitem = NULL;
+	int retval = 0;
+	int val    = 0;
 
-   /* item is already there */
-   if ((hitem = hlookup(key)) != NULL)
-      return -1;
+	/* item is already there */
+	if ((retval = hlookup(key, &val)) == 1)
+		return -1;
 
-   /* position is free, use it */
-   if (((hitem = hhash(key)) != NULL) && (hitem->deleted == 1)) {
-      hitem->val     = value;
-      hitem->deleted = 0;
-      return 0;
-   }
+	/* position is free, use it */
+	if (((hitem = hhash(key)) != NULL) && (hitem->deleted == 1)) {
+		hitem->val     = value;
+		hitem->deleted = 0;
+		return 0;
+	}
 
-   /* seek a free position */
-   while (rehash()
-   
-   return -1;
+	/* seek a free position */
+	while (rehash())
+	{
+	}
+
+	return -1;
 }
 
 int hremove(int key)
 {
-   return 0;
+	return 0;
 }
 
-struct item *hlookup(int key)
+int hlookup(int key, int *value)
 {
-   return NULL;
+	int position = -1;
+
+	if (value == NULL)
+		return -1;
+	else
+		if ((position = hash(key)) == -1)
+			return -1;
+
+	if (hashtable[position].key == key){
+		if (hashtable[position].deleted)
+			return -1;
+		else {
+			*value = hashtable[position].value;
+			return 0;
+		}
+	}
+	else
+		while ((position = rehash(key)) != -1) {
+			if (hashtable[position].key == key) {
+				if (hashtable[position].deleted)
+					return -1;
+				else {
+					*value = hashtable[position].value;
+					return 0;
+				}
+			}
+		}
+
+	return -1;
 }
 
 //   mtrace();
