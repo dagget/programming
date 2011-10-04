@@ -1,0 +1,83 @@
+#!/usr/bin/env perl
+# run as root for pmap to work
+
+use strict;
+use warnings;
+use Getopt::Long;
+
+my $requestedpid = 0;
+
+#my $lib_regexp=/^\d{8,8}\s+?(\d+?\s+?){3,3}[rwx-]{5,5}.*\.so.*/;
+my $pmapline=qr/^([\dabcdef]{8})\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s+?([rwx-]{5})\s+(.*)$/;
+my $lib=qr/\.so/;
+my $stack=qr/\[\s+stack\s+\]/;
+my $anon=qr/\[\s+anon\s+\]/;
+
+my %libraries;
+my %applications;
+
+GetOptions ( "pid=i" => \$requestedpid );
+
+if ($requestedpid ne 0) {
+	open (FILE, "pmap -x $requestedpid |") || die "no pmap";
+}
+else {
+	open (FILE, "pmap -x /proc/* |") || die "no pmap";
+}
+
+while(<FILE>){
+	if (/^(\d+):\s+(.*)/ .. /^total kB/){
+		my %apprecord;
+		my $pid = $1;
+		my $appfull = $2;
+		# the second match in the if statement above matches on the last line
+		# this causes the first match to disappear (undefining $1 and $2)
+
+		# skip kernel threads
+		defined $pid and ($appfull =~ /^\[.*\]$/) and next;
+
+		defined $pid and $applications{ $pid }{ 'name' } = $appfull;
+
+		# prot_none pages can be dropped as they don't take up physical memory
+		if ($_ =~ $pmapline){
+			my $address = $1;
+			my $size = $2;
+			my $rss = $3;
+			my $dirty = $4;
+			my $mode = $5;
+			my $name = $6;
+
+			if ($name =~ $lib){
+				if($mode eq 'r-x--'){ $libraries{ $name }{'text'}=$size;}
+				if($mode eq 'rw---'){ $libraries{ $name }{'data'}=$size;} # should be heap of this process
+				if($mode eq 'r----'){ $libraries{ $name }{'rss'}=$size;}
+			}
+			elsif ($name =~ $stack){
+				$applications{ $pid }{ 'stack' } += $size;
+			}
+			elsif ($name =~ $anon){
+				$applications{ $pid }{ 'heap' } += $size;
+			}
+			else {
+			}
+		}
+	}
+}
+
+for my $libra ( keys %libraries ) {
+	print "$libra: ";
+	for my $segment ( keys %{ $libraries{$libra} } )
+	{
+		print "$segment=$libraries{$libra}{$segment} ";
+	}
+	print "\n";
+}
+
+for my $appl( keys %applications ) {
+	print "$appl: ";
+	for my $segment ( keys %{ $applications{$appl} } )
+	{
+		print "$segment=$applications{$appl}{$segment} ";
+	}
+	print "\n";
+}
