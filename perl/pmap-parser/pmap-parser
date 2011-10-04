@@ -73,7 +73,7 @@ for my $libra ( keys %libraries ) {
 	print "\n";
 }
 
-for my $appl( keys %applications ) {
+for my $appl( sort {$a <=> $b} keys %applications ) {
 	print "$appl: ";
 	for my $segment ( keys %{ $applications{$appl} } )
 	{
