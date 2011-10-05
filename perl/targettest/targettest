@@ -8,7 +8,7 @@ use Net::FTP;
 use Net::SSH qw(ssh_cmd);
 
 my $the_target;
-my $ftploc = "/bct";
+my $ftploc;
 my $files_to_target;
 my $result_files;
 my $files_from_target;
@@ -22,17 +22,18 @@ my %targetlist=(
 	"target4" => 0
 	);
 
-my %Options = ( "filestotarget" => \$files_to_target, "resultfiles" => \$result_files, "filesfromtarget" => \$files_from_target, "user" => \$user, "password" => \$password);
+my %Options = ( "filestotarget" => \$files_to_target, "resultfiles" => \$result_files, "filesfromtarget" => \$files_from_target, "user" => \$user, "password" => \$password, "location" => \$ftploc);
 
 sub usage()
 {
 	print "$0\n";
 	print "Please define the following options:\n";
-	print "\t-filestotarget=\"a,comma,separated,list\"\n";
-	print "\t-resultfiles=\"a,comma,separated,list\"\n";
-	print "\t-filesfromtarget=\"a,comma,separated,list\"\n";
-	print "\t-user=\"a,comma,separated,list\"\n";
-	print "\t-password=\"a,comma,separated,list\"\n";
+	print "\t--location=\"location\"";
+	print "\t--filestotarget=\"a,comma,separated,list\"\n";
+	print "\t--resultfiles=\"a,comma,separated,list\"\n";
+	print "\t--filesfromtarget=\"a,comma,separated,list\"\n";
+	print "\t--user=\"a,comma,separated,list\"\n";
+	print "\t--password=\"a,comma,separated,list\"\n";
 
 	exit(1);
 }
