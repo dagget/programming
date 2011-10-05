@@ -1,0 +1,138 @@
+#!/usr/bin/perl
+#
+use warnings;
+use strict;
+use Getopt::Long;
+use Net::Ping;
+use Net::FTP;
+use Net::SSH qw(ssh_cmd);
+
+my $the_target;
+my $ftploc = "/bct";
+my $files_to_target;
+my $result_files;
+my $files_from_target;
+my $user;
+my $password;
+
+my %targetlist=(
+	"target" => 0,
+	"target2" => 0,
+	"target3" => 0,
+	"target4" => 0
+	);
+
+my %Options = ( "filestotarget" => \$files_to_target, "resultfiles" => \$result_files, "filesfromtarget" => \$files_from_target, "user" => \$user, "password" => \$password);
+
+sub usage()
+{
+	print "$0\n";
+	print "Please define the following options:\n";
+	print "\t-filestotarget=\"a,comma,separated,list\"\n";
+	print "\t-resultfiles=\"a,comma,separated,list\"\n";
+	print "\t-filesfromtarget=\"a,comma,separated,list\"\n";
+	print "\t-user=\"a,comma,separated,list\"\n";
+	print "\t-password=\"a,comma,separated,list\"\n";
+
+	exit(1);
+}
+
+sub selecttarget()
+{
+	# ping list of possible targets
+	my $p = Net::Ping->new("tcp");
+
+	while( my ($k, $v) = each %targetlist ) 
+	{
+		print "Pinging target \"$k\".\n";
+		if ($p->ping($k,2)) {
+			$targetlist{$k} = 1;
+			$the_target = $k;
+			print "Using target $the_target.\n";
+			last;
+		} 
+		else {
+			print "Could not reach \"$k\", trying next target.\n";
+		}
+		sleep(1);
+	}
+	$p->close();
+}
+
+sub putfilesontarget()
+{
+	my $ftp = Net::FTP->new($the_target, Debug => 0) or die "Cannot connect to $the_target: $@";
+	$ftp->login($user,$password) or die "Cannot login ", $ftp->message;
+	$ftp->cwd($ftploc) or die "Cannot change working directory ", $ftp->message;
+
+	foreach (split(/,/,$files_to_target))
+	{
+		print "Putting $_ on $the_target\n";
+		$ftp->put($_) or die "put failed ", $ftp->message;
+	}
+	$ftp->quit;
+}
+
+sub runtest()
+{
+	# ssh to perform test
+	my $cmd="ls $ftploc";
+	#TODO add command to options
+
+	my @sshoutput=ssh_cmd( { user => $user,
+			              host => $the_target,
+						  command => $cmd });
+	print @sshoutput;
+}
+
+sub collectresults()
+{
+	my $ftp = Net::FTP->new($the_target, Debug => 0) or die "Cannot connect to $the_target: $@";
+	$ftp->login($user,$password) or die "Cannot login ", $ftp->message;
+	$ftp->cwd($ftploc) or die "Cannot change working directory ", $ftp->message;
+
+	foreach (split(/,/,$result_files))
+	{
+		print "Getting $_ off the target\n";
+		$ftp->get($_) or die "get failed ", $ftp->message;
+		#TODO: check to delete
+	}
+	$ftp->quit;
+}
+
+sub cleanuptarget()
+{
+	my $ftp = Net::FTP->new($the_target, Debug => 0) or die "Cannot connect to $the_target: $@";
+	$ftp->login($user,$password) or die "Cannot login ", $ftp->message;
+	$ftp->cwd($ftploc) or die "Cannot change working directory ", $ftp->message;
+
+	foreach (split(/,/,$files_from_target))
+	{
+		print "Removing $_ off the target\n";
+		$ftp->delete($_) or warn "delete failed ", $ftp->message;
+	}
+	$ftp->quit;
+
+}
+
+# MAIN ###################################################################################
+# collect list of files to put on target
+# collect list of files to save from target
+# collect list of files to remove from target
+# an ftp user + password
+GetOptions(\%Options, "filestotarget=s", "resultfiles=s", "filesfromtarget=s", "user=s", "password=s") or die "Failed to retrieve correct options";
+!defined $Options{"filesfromtarget"} and $Options{"filesfromtarget"} = $Options{"filestotarget"};
+
+!defined $files_to_target and usage();
+!defined $result_files and usage();
+!defined $files_from_target and usage();
+!defined $user and usage();
+!defined $password and usage();
+
+selecttarget();
+putfilesontarget();
+runtest();
+collectresults();
+cleanuptarget();
+
+exit(0);
