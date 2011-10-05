@@ -1,4 +1,7 @@
 #!/usr/bin/env perl
+# This program will go through the pmap output and create a gnuplot datafile
+# to perform memory usage measurements.
+#
 # run as root for pmap to work
 
 use strict;
