@@ -9,9 +9,19 @@ use warnings;
 use Getopt::Long;
 
 my $requestedpid = 0;
+my $sortbyheap = 0;
+my $sortbystack = 0;
+my $sortbytext = 0;
+my $sortbydata = 0;
+my $sortbyrss = 0;
+my $libsortby = 'text'; # default sort order
+my $appsortby = 'heap'; # default sort order
+my $numbytes = 8;
+
+`uname -p` =~ "x86_64" and $numbytes=16;
 
 #my $lib_regexp=/^\d{8,8}\s+?(\d+?\s+?){3,3}[rwx-]{5,5}.*\.so.*/;
-my $pmapline=qr/^([\dabcdef]{8})\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s+?([rwx-]{5})\s+(.*)$/;
+my $pmapline=qr/^([\dabcdef]{$numbytes})\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s+?([rwx-]{5})\s+(.*)$/;
 my $lib=qr/\.so/;
 my $stack=qr/\[\s+stack\s+\]/;
 my $anon=qr/\[\s+anon\s+\]/;
@@ -19,7 +29,7 @@ my $anon=qr/\[\s+anon\s+\]/;
 my %libraries;
 my %applications;
 
-GetOptions ( "pid=i" => \$requestedpid );
+GetOptions ( "pid=i" => \$requestedpid, "heap" => \$sortbyheap, "stack" => \$sortbystack, "text" => \$sortbytext, "data" => \$sortbydata, "rss" => \$sortbyrss );
 
 if ($requestedpid ne 0) {
 	open (FILE, "pmap -x $requestedpid |") || die "no pmap";
@@ -27,6 +37,13 @@ if ($requestedpid ne 0) {
 else {
 	open (FILE, "pmap -x /proc/* |") || die "no pmap";
 }
+
+$sortbyheap == 1 and $appsortby = 'heap';
+$sortbystack == 1 and $appsortby = 'stack';
+
+$sortbytext == 1 and $libsortby = 'text';
+$sortbydata == 1 and $libsortby = 'data';
+$sortbyrss == 1 and $libsortby = 'rss';
 
 while(<FILE>){
 	if (/^(\d+):\s+(.*)/ .. /^total kB/){
@@ -62,25 +79,46 @@ while(<FILE>){
 				$applications{ $pid }{ 'heap' } += $size;
 			}
 			else {
+				# other libtypes, i.e. locale-archive
+				if($mode eq 'r-x--'){ $libraries{ $name }{'text'}=$size;}
+				if($mode eq 'rw---'){ $libraries{ $name }{'data'}=$size;} # should be heap of this process
+				if($mode eq 'r----'){ $libraries{ $name }{'rss'}=$size;}
 			}
 		}
 	}
 }
 
 for my $libra ( keys %libraries ) {
-	print "$libra: ";
-	for my $segment ( keys %{ $libraries{$libra} } )
+	if (!defined $libraries{$libra}{'text'})
 	{
-		print "$segment=$libraries{$libra}{$segment} ";
+		$libraries{$libra}{'text'} = 0;
+	}
+
+	if (!defined $libraries{$libra}{'data'})
+	{
+		$libraries{$libra}{'data'} = 0;
+	}
+
+	if (!defined $libraries{$libra}{'rss'})
+	{
+		$libraries{$libra}{'rss'} = 0;
+	}
+}
+
+for my $libra ( sort { $libraries{$a}{$libsortby} <=> $libraries{$b}{$libsortby} } keys %libraries ) {
+	printf("%-60.60s:", $libra);
+
+	for my $segment ( sort {$a cmp $b} keys %{ $libraries{$libra} } )
+	{
+		printf("%4s=%8d ", $segment, $libraries{$libra}{$segment});
 	}
 	print "\n";
 }
 
-for my $appl( sort {$a <=> $b} keys %applications ) {
-	print "$appl: ";
-	for my $segment ( keys %{ $applications{$appl} } )
-	{
-		print "$segment=$applications{$appl}{$segment} ";
-	}
+for my $appl( sort {$applications{$a}{$appsortby} <=> $applications{$b}{$appsortby}} keys %applications ) {
+	printf("%-8d: ", $appl);
+	printf("% 50.50s:", $applications{$appl}{'name'});
+	printf("%4s=%8.8s ", 'heap', $applications{$appl}{'heap'});
+	printf("%5s=%8.8s ", 'stack', $applications{$appl}{'stack'});
 	print "\n";
 }
