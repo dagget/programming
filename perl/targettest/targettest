@@ -7,13 +7,14 @@ use Net::Ping;
 use Net::FTP;
 use Net::SSH qw(ssh_cmd);
 
-my $the_target;
-my $ftploc;
-my $files_to_target;
-my $result_files;
-my $files_from_target;
-my $user;
-my $password;
+my $the_target = "";
+my $location = "";
+my $files_to_target = "";
+my $result_files = "";
+my $files_from_target = "";
+my $user = "";
+my $password = "";
+my $commands = "";
 
 my %targetlist=(
 	"target" => 0,
@@ -22,13 +23,14 @@ my %targetlist=(
 	"target4" => 0
 	);
 
-my %Options = ( "filestotarget" => \$files_to_target, "resultfiles" => \$result_files, "filesfromtarget" => \$files_from_target, "user" => \$user, "password" => \$password, "location" => \$ftploc);
+my %Options = ( "filestotarget" => \$files_to_target, "resultfiles" => \$result_files, "filesfromtarget" => \$files_from_target, "user" => \$user, "password" => \$password, "location" => \$location, "commands" => \$commands);
 
 sub usage()
 {
 	print "$0\n";
 	print "Please define the following options:\n";
-	print "\t--location=\"location\"";
+	print "\t--location=\"location\"\n";
+	print "\t--commands=\"a,comma,separated,list\"\n";
 	print "\t--filestotarget=\"a,comma,separated,list\"\n";
 	print "\t--resultfiles=\"a,comma,separated,list\"\n";
 	print "\t--filesfromtarget=\"a,comma,separated,list\"\n";
@@ -64,7 +66,7 @@ sub putfilesontarget()
 {
 	my $ftp = Net::FTP->new($the_target, Debug => 0) or die "Cannot connect to $the_target: $@";
 	$ftp->login($user,$password) or die "Cannot login ", $ftp->message;
-	$ftp->cwd($ftploc) or die "Cannot change working directory ", $ftp->message;
+	$ftp->cwd($location) or die "Cannot change working directory ", $ftp->message;
 
 	foreach (split(/,/,$files_to_target))
 	{
@@ -77,20 +79,22 @@ sub putfilesontarget()
 sub runtest()
 {
 	# ssh to perform test
-	my $cmd="ls $ftploc";
-	#TODO add command to options
+	foreach (split(/,/,$commands))
+	{
+		print "Running $_ on $the_target\n";
 
-	my @sshoutput=ssh_cmd( { user => $user,
-			              host => $the_target,
-						  command => $cmd });
-	print @sshoutput;
+		my @sshoutput=ssh_cmd( { user => $user,
+				      host => $the_target,
+				      command => $_ });
+		print @sshoutput;
+	}
 }
 
 sub collectresults()
 {
 	my $ftp = Net::FTP->new($the_target, Debug => 0) or die "Cannot connect to $the_target: $@";
 	$ftp->login($user,$password) or die "Cannot login ", $ftp->message;
-	$ftp->cwd($ftploc) or die "Cannot change working directory ", $ftp->message;
+	$ftp->cwd($location) or die "Cannot change working directory ", $ftp->message;
 
 	foreach (split(/,/,$result_files))
 	{
@@ -105,7 +109,7 @@ sub cleanuptarget()
 {
 	my $ftp = Net::FTP->new($the_target, Debug => 0) or die "Cannot connect to $the_target: $@";
 	$ftp->login($user,$password) or die "Cannot login ", $ftp->message;
-	$ftp->cwd($ftploc) or die "Cannot change working directory ", $ftp->message;
+	$ftp->cwd($location) or die "Cannot change working directory ", $ftp->message;
 
 	foreach (split(/,/,$files_from_target))
 	{
@@ -121,19 +125,17 @@ sub cleanuptarget()
 # collect list of files to save from target
 # collect list of files to remove from target
 # an ftp user + password
-GetOptions(\%Options, "filestotarget=s", "resultfiles=s", "filesfromtarget=s", "user=s", "password=s") or die "Failed to retrieve correct options";
-!defined $Options{"filesfromtarget"} and $Options{"filesfromtarget"} = $Options{"filestotarget"};
+GetOptions(\%Options, "filestotarget:s", "resultfiles:s", "filesfromtarget:s", "location:s", "commands=s", "user=s", "password=s") or die "Failed to retrieve correct options";
+!defined $Options{"filesfromtarget"} and defined $Options{"filestotarget"} and $Options{"filesfromtarget"} = $Options{"filestotarget"};
 
-!defined $files_to_target and usage();
-!defined $result_files and usage();
-!defined $files_from_target and usage();
 !defined $user and usage();
 !defined $password and usage();
+!defined $commands and usage();
 
 selecttarget();
-putfilesontarget();
+$files_to_target ne "" and putfilesontarget();
 runtest();
-collectresults();
-cleanuptarget();
+$result_files ne "" and collectresults();
+$files_from_target ne "" and cleanuptarget();
 
 exit(0);
