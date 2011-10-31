@@ -15,6 +15,7 @@ my $files_from_target = "";
 my $user = "";
 my $password = "";
 my $commands = "";
+my $DEBUG=undef;
 
 my %targetlist=(
 	"target" => 0,
@@ -47,15 +48,15 @@ sub selecttarget()
 
 	while( my ($k, $v) = each %targetlist ) 
 	{
-		print "Pinging target \"$k\".\n";
+		defined $DEBUG and print "Pinging target \"$k\".\n";
 		if ($p->ping($k,2)) {
 			$targetlist{$k} = 1;
 			$the_target = $k;
-			print "Using target $the_target.\n";
+			defined $DEBUG and print "Using target $the_target.\n";
 			last;
 		} 
 		else {
-			print "Could not reach \"$k\", trying next target.\n";
+			defined $DEBUG and print "Could not reach \"$k\", trying next target.\n";
 		}
 		sleep(1);
 	}
@@ -70,7 +71,7 @@ sub putfilesontarget()
 
 	foreach (split(/,/,$files_to_target))
 	{
-		print "Putting $_ on $the_target\n";
+        defined $DEBUG and print "Putting $_ on $the_target\n";
 		$ftp->put($_) or die "put failed ", $ftp->message;
 	}
 	$ftp->quit;
@@ -98,7 +99,7 @@ sub collectresults()
 
 	foreach (split(/,/,$result_files))
 	{
-		print "Getting $_ off the target\n";
+		defined $DEBUG and print "Getting $_ off the target\n";
 		$ftp->get($_) or die "get failed ", $ftp->message;
 		#TODO: check to delete
 	}
@@ -113,7 +114,7 @@ sub cleanuptarget()
 
 	foreach (split(/,/,$files_from_target))
 	{
-		print "Removing $_ off the target\n";
+		defined $DEBUG and print "Removing $_ off the target\n";
 		$ftp->delete($_) or warn "delete failed ", $ftp->message;
 	}
 	$ftp->quit;
@@ -126,11 +127,11 @@ sub cleanuptarget()
 # collect list of files to remove from target
 # an ftp user + password
 GetOptions(\%Options, "filestotarget:s", "resultfiles:s", "filesfromtarget:s", "location:s", "commands=s", "user=s", "password=s") or die "Failed to retrieve correct options";
-!defined $Options{"filesfromtarget"} and defined $Options{"filestotarget"} and $Options{"filesfromtarget"} = $Options{"filestotarget"};
+$files_from_target eq "" and $files_to_target ne "" and $files_from_target = $files_to_target;
 
-!defined $user and usage();
-!defined $password and usage();
-!defined $commands and usage();
+$user eq "" and usage();
+$password eq "" and usage();
+$commands eq "" and usage();
 
 selecttarget();
 $files_to_target ne "" and putfilesontarget();
