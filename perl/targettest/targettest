@@ -111,11 +111,14 @@ sub cleanuptarget()
 	my $ftp = Net::FTP->new($the_target, Debug => 0) or die "Cannot connect to $the_target: $@";
 	$ftp->login($user,$password) or die "Cannot login ", $ftp->message;
 	$ftp->cwd($location) or die "Cannot change working directory ", $ftp->message;
+    my $file = "";
 
 	foreach (split(/,/,$files_from_target))
 	{
-		defined $DEBUG and print "Removing $_ off the target\n";
-		$ftp->delete($_) or warn "delete failed ", $ftp->message;
+        $file = split(/\//, $_);
+        $file = $location . "/" . $file;
+		defined $DEBUG and print "Removing $file off the target\n";
+		$ftp->delete($file) or warn "delete failed ", $ftp->message;
 	}
 	$ftp->quit;
 
