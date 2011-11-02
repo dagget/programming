@@ -6,6 +6,7 @@ use Getopt::Long;
 use Net::Ping;
 use Net::FTP;
 use Net::SSH qw(ssh_cmd);
+use File::Basename;
 
 my $the_target = "";
 my $location = "";
@@ -115,7 +116,7 @@ sub cleanuptarget()
 
 	foreach (split(/,/,$files_from_target))
 	{
-        $file = split(/\//, $_);
+        $file = basename($_);
         $file = $location . "/" . $file;
 		defined $DEBUG and print "Removing $file off the target\n";
 		$ftp->delete($file) or warn "delete failed ", $ftp->message;
