@@ -14,14 +14,15 @@ my $sortbystack = 0;
 my $sortbytext = 0;
 my $sortbydata = 0;
 my $sortbyrss = 0;
+my $pmapfile = "";
 my $libsortby = 'text'; # default sort order
 my $appsortby = 'heap'; # default sort order
 my $numbytes = 8;
 
-`uname -p` =~ "x86_64" and $numbytes=16;
 
 #my $lib_regexp=/^\d{8,8}\s+?(\d+?\s+?){3,3}[rwx-]{5,5}.*\.so.*/;
-my $pmapline=qr/^([\dabcdef]{$numbytes})\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s+?([rwx-]{5})\s+(.*)$/;
+#my $pmapline=qr/^([\dabcdef]{$numbytes})\s+?([\d-]+?)\s+?([\d-]+?)\s+?([\d-]+?)\s+?([rwx-]{5})\s+(.*)$/; # for normal pmap
+my  $pmapline=qr/^([\dabcdef]{$numbytes})\s+?([\d-]+?)\s+?([\d-]+?)\s+?([\d-]+?)\s+?([\d-]+?)\s+?([rwx-]{5})\s+(.*)$/; # for busybox pmap
 my $lib=qr/\.so/;
 my $stack=qr/\[\s+stack\s+\]/;
 my $anon=qr/\[\s+anon\s+\]/;
@@ -29,14 +30,19 @@ my $anon=qr/\[\s+anon\s+\]/;
 my %libraries;
 my %applications;
 
-GetOptions ( "pid=i" => \$requestedpid, "heap" => \$sortbyheap, "stack" => \$sortbystack, "text" => \$sortbytext, "data" => \$sortbydata, "rss" => \$sortbyrss );
+GetOptions ( "pid=i" => \$requestedpid, "heap" => \$sortbyheap, "stack" => \$sortbystack, "text" => \$sortbytext, "data" => \$sortbydata, "rss" => \$sortbyrss, "file=s" => \$pmapfile );
 
 if ($requestedpid ne 0) {
 	open (FILE, "pmap -x $requestedpid |") || die "no pmap";
 }
+elsif ($pmapfile ne ""){
+    open (FILE, "< $pmapfile") || die "no pmap file: $!";
+}
 else {
 	open (FILE, "pmap -x /proc/* |") || die "no pmap";
 }
+
+$pmapfile ne "" and `uname -p` =~ "x86_64" and $numbytes=16;
 
 $sortbyheap == 1 and $appsortby = 'heap';
 $sortbystack == 1 and $appsortby = 'stack';
@@ -64,8 +70,9 @@ while(<FILE>){
 			my $size = $2;
 			my $rss = $3;
 			my $dirty = $4;
-			my $mode = $5;
-			my $name = $6;
+            my $locked = $5;
+			my $mode = $6;
+			my $name = $7;
 
 			if ($name =~ $lib){
 				if($mode eq 'r-x--'){ $libraries{ $name }{'text'}=$size;}
