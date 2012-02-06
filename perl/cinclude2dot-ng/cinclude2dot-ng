@@ -1,0 +1,72 @@
+#!/usr/bin/env perl
+
+# This is a tool inspired by cinclude2dot
+# The original can be found here: http://www.chaosreigns.com/code/cinclude2dot/
+# An improved version is to be found here: http://www.flourish.org/cinclude2dot/
+#
+
+use strict;
+use warnings;
+use Getopt::Long;
+use File::Find;
+use Cwd;
+
+my $file="";
+my @file_queue;
+my @globbed;
+
+#my %Options = ( "" => \$files_to_target, "" => \$result_files, "" => \$files_from_target, "" => \$user, "" => \$password, "" => \$location, "" => \$commands);
+
+sub usage()
+{
+	print "$0\n";
+	print "Please define the following options:\n";
+	print "\t--=\"\"\n";
+
+	exit(1);
+}
+
+sub wanted {
+# this subroutine gets called once for each file
+# Inside this subroutine, $_ is set to the
+# name of the current file and the current
+# directory is the directory where that file 
+# is stored
+	my $pwd = cwd();
+	print "The file: $pwd/$_\n";
+	matchfile($pwd."/".$_);
+	
+}
+
+sub matchfile($)
+{
+	# match any file ending in .c .C .cc .cxx .cpp .h .hpp .hxx
+	($_[0] =~ /.*\.[cC]{0,2}$/ or $_[0] =~ /.*\.cpp$/ or $_[0] =~ /.*\.cxx$/ or $_[0] =~ /.*\.h$/ or $_[0] =~ /.*\.hpp$/ or $_[0] =~ /.*\.hxx$/) and push(@file_queue, $_[0]);
+}
+
+################################################################################
+# main
+
+# Detect if arguments are directories or files.
+# In the case of directories, just add all *.c *.cpp *.h *.hpp files to the list
+
+foreach $file (@ARGV){
+
+	matchfile($file);
+
+	# if file starts with / or ./ search for files ending in .c .C .cc .cxx .cpp .h .hpp .hxx
+	if (($file =~ /^\//) || ($file =~ /\.\//)) {
+		find (\&wanted, $file);
+		#opendir(my $dh, $file) || die "can't opendir $file: $!";
+		#@globbed = grep { (/.*\.[cC]{1,2}$/ or /.*\.cpp$/ or /.*\.cxx$/ or /.*\.h$/ or /.*\.hpp$/ or /.*\.hxx$/) && -f "$file/$_" } readdir($dh);
+		#closedir $dh;
+	}
+	#push(@file_queue, @globbed);
+
+	print "$file\n";
+}
+
+print "The queue\n";
+foreach $file (@file_queue){
+	print "$file\n";
+}
