@@ -91,21 +91,21 @@ sub findinclude($$$)
 	my $include          = $_[0];
 	my $localinclude     = $_[1];
 	my $localincludepath = $_[2];
-	my $sanitized        = "";
+	my $tidied = "";
 
 	if ($localinclude) {
-		$sanitized = Cwd::abs_path(canonpath($localincludepath."/".$include));
-		if(-e $sanitized ){
+		$tidied = tidypath($localincludepath."/".$include);
+		if($tidied ne ""){
 			$debug and print "Found include $include in $localincludepath\n";
-			return $sanitized;
+			return $tidied;
 		}
 	}
 
 	foreach my $includepath (@includepaths){
-		$sanitized = Cwd::abs_path(canonpath($includepath."/".$include));
-		if(-e $sanitized){
+		$tidied = tidypath($includepath."/".$include);
+		if($tidied ne ""){
 			$debug and print "Found include $include in $includepath\n";
-			return $sanitized;
+			return $tidied;
 		}
 	}
 
@@ -137,8 +137,6 @@ sub parsefileforheaders($)
 			}
 		}
 
-		# my $outputfilestring = "    \"$_[0]\" -> {";
-		#   "putmpg.c" -> { "config.h" "global.h" "stdio.h" "stdio.h" }
 		if(!defined $dependencies{ $_[0] }){
 			$dependencies{ $_[0] } = "";
 
@@ -157,7 +155,6 @@ sub parsefileforheaders($)
 						my $includefull = findinclude($include, 0, "");
 						if($includefull ne ""){
 							unshift(@file_queue, $includefull);
-							#$outputfilestring = $outputfilestring . " \"" . $includefull . "\"";
 							$dependencies{ $_[0] } = $dependencies{ $_[0] } . " \"$includefull\"";
 						}
 					}
@@ -169,15 +166,12 @@ sub parsefileforheaders($)
 						my $includefull = findinclude($include, 1, dirname($_[0]));
 						if($includefull ne ""){
 							unshift(@file_queue, $includefull);
-							#$outputfilestring = $outputfilestring . " \"" . $includefull . "\"";
 							$dependencies{ $_[0] } = $dependencies{ $_[0] } . " \"$includefull\"";
 						}
 					}
 				}
 			}
 		}
-		#$outputfilestring = $outputfilestring . " }\n";
-		#print OUTPUT $outputfilestring;
 	}
 
 	if (@file_queue > 0) {
@@ -201,6 +195,28 @@ sub compilecheck($)
 	return 0; # Fail
 }
 
+sub tidypath($)
+{
+	my $tidied = $_[0];
+	# add a full path to the following patterns:
+	# file.c
+	# dir/file.c
+	# ../file.c
+	# ./file.c
+	$tidied !~ /^\// and $tidied = cwd() . "/" . $tidied;
+
+	# remove the pattern /dir/./file.c
+	$tidied = canonpath($tidied);
+
+	# check for file existance and remove these patterns:
+	# /dir/../file.c
+	# /dir/dir/../../dir/../file.c
+	$tidied = Cwd::abs_path($tidied);
+
+	defined $tidied and return $tidied;
+	return "";
+}
+
 ################################################################################
 # main
 GetOptions('debug' => \$debug, 'help' => \$help, 'includepaths=s' => \@includepaths, 'maxlevel=i' => \$maxlevel, 'outputfile=s' => \$outputfile, 'exclude=s' => \$exclude, 'quotetypes=s' => \$quotetypes, 'check' => \$check);
@@ -221,16 +237,13 @@ if (!defined $ARGV[0]) {
 
 # Detect if arguments are directories or files.
 foreach $file (@ARGV){
-	# sanitize path to be absolute
-	if ($file =~ /\//) {
-		$file = Cwd::abs_path(canonpath($file));
-	}
-	
-	# add supplied source files to the queue
-	matchfile($file);
+	if(tidypath($file) ne ""){	
+		# add supplied source files to the queue
+		matchfile($file);
 
-	if(-d $file){
-		find (\&wanted, $file);
+		if(-d $file){
+			find (\&wanted, $file);
+		}
 	}
 }
 
