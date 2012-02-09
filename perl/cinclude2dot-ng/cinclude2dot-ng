@@ -12,7 +12,6 @@
 #
 # Tasks left to implement:
 #  - the --merge and --groups parameters
-#  - the -- quotetypes parameter
 #  - using gcc to check the header files (compile header file standalone)
 #  - using gcc to check the unnecessary header files (comment out a single file and try to compile)
 
