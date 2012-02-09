@@ -4,6 +4,17 @@
 # The original can be found here: http://www.chaosreigns.com/code/cinclude2dot/
 # An improved version is to be found here: http://www.flourish.org/cinclude2dot/
 #
+# I wanted a tool that could perform the same tasks, but I would like to be able
+# to specify the point where it should stop searching. I have rewritten cincludedot
+# so that it uses breadth first search (shove as much files on a queue as you can,
+# then pop the first item and push all its nodes a the front of the queue. Rinse and
+# repeat). Inserting level markers gave me an easy way to keep track of the depth.
+#
+# Tasks left to implement:
+#  - the --merge and --groups parameters
+#  - the -- quotetypes parameter
+#  - using gcc to check the header files (compile header file standalone)
+#  - using gcc to check the unnecessary header files (comment out a single file and try to compile)
 
 use strict;
 use warnings;
@@ -22,6 +33,7 @@ my $help = '';
 my @includepaths;
 my $maxlevel = 0;
 my $outputfile="./out.dot";
+my $exclude="/^\$/";
 
 sub usage()
 {
@@ -33,6 +45,7 @@ sub usage()
 	print "\t--includepaths = a comma separated list of include paths to search\n";
 	print "\t--maxlevel     = fill the include 'tree' up to maxlevel levels deep (default = 1)\n";
 	print "\t--outputfile   = fill the include 'tree' up to maxlevel levels deep (default = ./out.dot)\n";
+	print "\t--exclude      = a perl regex of files to exclude\n";
 
 	exit(1);
 }
@@ -42,12 +55,20 @@ sub wanted()
 	my $pwd = cwd();
 	$debug and print "parsing subdirs: $pwd/$_\n";
 	matchfile($pwd."/".$_);
+
 }
 
 sub matchfile($)
 {
-# match any file ending in .c .C .cc .CC .cxx .cpp .h .hpp .hxx
-	($_[0] =~ /.*\.[cC]{1,2}$/ or $_[0] =~ /.*\.cpp$/ or $_[0] =~ /.*\.cxx$/ or $_[0] =~ /.*\.h$/ or $_[0] =~ /.*\.hpp$/ or $_[0] =~ /.*\.hxx$/) and push(@file_queue, $_[0]);
+	$_[0] =~ $exclude and return;
+
+	# match any file ending in .c .C .cc .CC .cxx .cpp .h .hpp .hxx
+	$_[0] =~ /.*\.[cC]{1,2}$/ and push(@file_queue, $_[0]);
+	$_[0] =~ /.*\.cpp$/ and push(@file_queue, $_[0]);
+	$_[0] =~ /.*\.cxx$/ and push(@file_queue, $_[0]);
+	$_[0] =~ /.*\.h$/ and push(@file_queue, $_[0]);
+	$_[0] =~ /.*\.hpp$/ and push(@file_queue, $_[0]);
+	$_[0] =~ /.*\.hxx$/ and push(@file_queue, $_[0]);
 }
 
 sub printqueue()
@@ -82,6 +103,10 @@ sub findinclude($$$)
 	return "";
 }
 
+# forward declaration of recursive function to avoid the 'called too early to check 
+# prototype' warning
+sub parsefileforheaders;
+
 sub parsefileforheaders($)
 {
 	$level >= $maxlevel and return;
@@ -94,7 +119,7 @@ sub parsefileforheaders($)
 	} else {
 		$debug and print "parsing file $_[0] for headers\n";
 
-		my $outputfilestring = "\"$_[0]\" -> {";
+		my $outputfilestring = "    \"$_[0]\" -> {";
 		#   "putmpg.c" -> { "config.h" "global.h" "stdio.h" "stdio.h" }
 
 		if( -e $_[0]){
@@ -139,7 +164,7 @@ sub parsefileforheaders($)
 
 ################################################################################
 # main
-GetOptions('debug' => \$debug, 'help' => \$help, 'includepaths=s' => \@includepaths, 'maxlevel=i' => \$maxlevel, 'outputfile=s' => \$outputfile);
+GetOptions('debug' => \$debug, 'help' => \$help, 'includepaths=s' => \@includepaths, 'maxlevel=i' => \$maxlevel, 'outputfile=s' => \$outputfile, 'exclude=s' => \$exclude);
 @includepaths = split(/,/,join(',',@includepaths)); # allow multiple --includepaths directives
 $debug and print "@includepaths\n";
 
