@@ -32,8 +32,9 @@ my $debug = '';
 my $help = '';
 my @includepaths;
 my $maxlevel = 0;
-my $outputfile="./out.dot";
-my $exclude="/^\$/";
+my $outputfile = "./out.dot";
+my $exclude = "/^\$/";
+my $quotetypes =  "both";
 
 sub usage()
 {
@@ -46,6 +47,9 @@ sub usage()
 	print "\t--maxlevel     = fill the include 'tree' up to maxlevel levels deep (default = 1)\n";
 	print "\t--outputfile   = fill the include 'tree' up to maxlevel levels deep (default = ./out.dot)\n";
 	print "\t--exclude      = a perl regex of files to exclude\n";
+	print "\t--quotetypes   = quote, angle or both (default).\n";
+	print "\t                 quote - Include only non-local headers (<>)\n";
+	print "\t                 angle - Include only local headers (\"\")\n";
 
 	exit(1);
 }
@@ -132,7 +136,7 @@ sub parsefileforheaders($)
 			$debug and print "$_[0] contains @localincludes @includes\n";
 
 			# add includes with full path to queue
-			if(@includes > 0){
+			if((@includes > 0) && (($quotetypes eq "angle") || ($quotetypes eq "both"))){
 				foreach my $include (@includes){
 					my $includefull = findinclude($include, 0, "");
 					if($includefull ne ""){
@@ -143,7 +147,7 @@ sub parsefileforheaders($)
 			}
 
 			# add local includes with full path to queue
-			if(@localincludes > 0){
+			if((@localincludes > 0) && (($quotetypes eq "quote") || ($quotetypes eq "both"))){
 				foreach my $include (@localincludes){
 					my $includefull = findinclude($include, 1, dirname($_[0]));
 					if($includefull ne ""){
@@ -164,7 +168,7 @@ sub parsefileforheaders($)
 
 ################################################################################
 # main
-GetOptions('debug' => \$debug, 'help' => \$help, 'includepaths=s' => \@includepaths, 'maxlevel=i' => \$maxlevel, 'outputfile=s' => \$outputfile, 'exclude=s' => \$exclude);
+GetOptions('debug' => \$debug, 'help' => \$help, 'includepaths=s' => \@includepaths, 'maxlevel=i' => \$maxlevel, 'outputfile=s' => \$outputfile, 'exclude=s' => \$exclude, 'quotetypes=s' => \$quotetypes);
 @includepaths = split(/,/,join(',',@includepaths)); # allow multiple --includepaths directives
 $debug and print "@includepaths\n";
 
