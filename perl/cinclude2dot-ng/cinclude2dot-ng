@@ -12,7 +12,6 @@
 #
 # Tasks left to implement:
 #  - the --merge and --groups parameters
-#  - using gcc to check the header files (compile header file standalone)
 #  - using gcc to check the unnecessary header files (comment out a single file and try to compile)
 
 use strict;
@@ -22,9 +21,10 @@ use File::Find;
 use File::Basename;
 use Cwd;
 
-my $file="";
-my $level=0;
+my $file = "";
+my $level = 0;
 my @file_queue;
+my $gcc = `which gcc`;
 
 # options
 my $debug = '';
@@ -34,6 +34,7 @@ my $maxlevel = 0;
 my $outputfile = "./out.dot";
 my $exclude = "/^\$/";
 my $quotetypes =  "both";
+my $check = 0;
 
 sub usage()
 {
@@ -41,14 +42,15 @@ sub usage()
 	print "Supply one or more files / directories to search for source files\n";
 	print "If no files are supplied, the current directory is used\n";
 	print "Please define the following options:\n";
-	print "\t--debug        = be verbose\n";
-	print "\t--includepaths = a comma separated list of include paths to search\n";
-	print "\t--maxlevel     = fill the include 'tree' up to maxlevel levels deep (default = 1)\n";
-	print "\t--outputfile   = fill the include 'tree' up to maxlevel levels deep (default = ./out.dot)\n";
-	print "\t--exclude      = a perl regex of files to exclude\n";
-	print "\t--quotetypes   = quote, angle or both (default).\n";
-	print "\t                 quote - Include only non-local headers (<>)\n";
-	print "\t                 angle - Include only local headers (\"\")\n";
+	print "\t--debug\t\t= be verbose\n";
+	print "\t--includepaths\t\t= a comma separated list of include paths to search\n";
+	print "\t--maxlevel\t\t= fill the include 'tree' up to maxlevel levels deep (default = 1)\n";
+	print "\t--outputfile\t\t= fill the include 'tree' up to maxlevel levels deep (default = ./out.dot)\n";
+	print "\t--exclude\t\t= a perl regex of files to exclude\n";
+	print "\t--quotetypes\t\t= quote, angle or both (default).\n";
+	print "\t\t\t\tquote - Include only non-local headers (<>)\n";
+	print "\t\t\t\tangle - Include only local headers (\"\")\n";
+	print "\t--check\t\t= try to compile header\n";
 
 	exit(1);
 }
@@ -121,6 +123,14 @@ sub parsefileforheaders($)
 
 	} else {
 		$debug and print "parsing file $_[0] for headers\n";
+		$debug and $check and print "checking if $_[0] compiles\n";
+		if($check){
+			if(compilecheck($_[0])){
+				print "$_[0]: compiled OK\n";
+			} else {
+				print "$_[0]: Failed to compile\n";
+			}
+		}
 
 		my $outputfilestring = "    \"$_[0]\" -> {";
 		#   "putmpg.c" -> { "config.h" "global.h" "stdio.h" "stdio.h" }
@@ -165,9 +175,25 @@ sub parsefileforheaders($)
 	}
 }
 
+sub compilecheck($)
+{
+	chomp($gcc);
+	my $cmd = "$gcc";
+
+	foreach my $includepath (@includepaths){
+		$cmd = $cmd . " -I$includepath";
+	}
+
+	$cmd = $cmd . " -c $_[0] -o /tmp/out";
+
+	$debug and $check and print "Compile check: $cmd\n";
+	system($cmd) == 0 and return 1; # OK
+	return 0; # Fail
+}
+
 ################################################################################
 # main
-GetOptions('debug' => \$debug, 'help' => \$help, 'includepaths=s' => \@includepaths, 'maxlevel=i' => \$maxlevel, 'outputfile=s' => \$outputfile, 'exclude=s' => \$exclude, 'quotetypes=s' => \$quotetypes);
+GetOptions('debug' => \$debug, 'help' => \$help, 'includepaths=s' => \@includepaths, 'maxlevel=i' => \$maxlevel, 'outputfile=s' => \$outputfile, 'exclude=s' => \$exclude, 'quotetypes=s' => \$quotetypes, 'check' => \$check);
 @includepaths = split(/,/,join(',',@includepaths)); # allow multiple --includepaths directives
 $debug and print "@includepaths\n";
 
