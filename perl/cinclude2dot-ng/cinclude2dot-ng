@@ -19,12 +19,14 @@ use warnings;
 use Getopt::Long;
 use File::Find;
 use File::Basename;
+use File::Spec::Functions;
 use Cwd;
 
 my $file = "";
 my $level = 0;
 my @file_queue;
 my $gcc = `which gcc`;
+my %dependencies;
 
 # options
 my $debug = '';
@@ -89,18 +91,21 @@ sub findinclude($$$)
 	my $include          = $_[0];
 	my $localinclude     = $_[1];
 	my $localincludepath = $_[2];
+	my $sanitized        = "";
 
 	if ($localinclude) {
-		if(-e $localincludepath."/".$include){
+		$sanitized = Cwd::abs_path(canonpath($localincludepath."/".$include));
+		if(-e $sanitized ){
 			$debug and print "Found include $include in $localincludepath\n";
-			return $localincludepath."/".$include;
+			return $sanitized;
 		}
 	}
 
 	foreach my $includepath (@includepaths){
-		if(-e $includepath."/".$include){
+		$sanitized = Cwd::abs_path(canonpath($includepath."/".$include));
+		if(-e $sanitized){
 			$debug and print "Found include $include in $includepath\n";
-			return $includepath."/".$include;
+			return $sanitized;
 		}
 	}
 
@@ -132,42 +137,47 @@ sub parsefileforheaders($)
 			}
 		}
 
-		my $outputfilestring = "    \"$_[0]\" -> {";
+		# my $outputfilestring = "    \"$_[0]\" -> {";
 		#   "putmpg.c" -> { "config.h" "global.h" "stdio.h" "stdio.h" }
+		if(!defined $dependencies{ $_[0] }){
+			$dependencies{ $_[0] } = "";
 
-		if( -e $_[0]){
-			open(INPUT, "<$_[0]");
-			my @lines = <INPUT>;
-			my @includes = grep{/^\#\s*include\s+<(\S+)>$/; defined $1 and $_=$1;} @lines;
-			my @localincludes = grep{/^\#\s*include\s+"(\S+)"$/; defined $1 and $_=$1;} @lines;
-			close(INPUT);
-			
-			$debug and print "$_[0] contains @localincludes @includes\n";
+			if( -e $_[0]){
+				open(INPUT, "<$_[0]");
+				my @lines = <INPUT>;
+				my @includes = grep{/^\#\s*include\s+<(\S+)>$/; defined $1 and $_=$1;} @lines;
+				my @localincludes = grep{/^\#\s*include\s+"(\S+)"$/; defined $1 and $_=$1;} @lines;
+				close(INPUT);
+				
+				$debug and print "$_[0] contains @localincludes @includes\n";
 
-			# add includes with full path to queue
-			if((@includes > 0) && (($quotetypes eq "angle") || ($quotetypes eq "both"))){
-				foreach my $include (@includes){
-					my $includefull = findinclude($include, 0, "");
-					if($includefull ne ""){
-						unshift(@file_queue, $includefull);
-						$outputfilestring = $outputfilestring . " \"" . $includefull . "\"";
+				# add includes with full path to queue
+				if((@includes > 0) && (($quotetypes eq "angle") || ($quotetypes eq "both"))){
+					foreach my $include (@includes){
+						my $includefull = findinclude($include, 0, "");
+						if($includefull ne ""){
+							unshift(@file_queue, $includefull);
+							#$outputfilestring = $outputfilestring . " \"" . $includefull . "\"";
+							$dependencies{ $_[0] } = $dependencies{ $_[0] } . " \"$includefull\"";
+						}
 					}
 				}
-			}
 
-			# add local includes with full path to queue
-			if((@localincludes > 0) && (($quotetypes eq "quote") || ($quotetypes eq "both"))){
-				foreach my $include (@localincludes){
-					my $includefull = findinclude($include, 1, dirname($_[0]));
-					if($includefull ne ""){
-						unshift(@file_queue, $includefull);
-						$outputfilestring = $outputfilestring . " \"" . $includefull . "\"";
+				# add local includes with full path to queue
+				if((@localincludes > 0) && (($quotetypes eq "quote") || ($quotetypes eq "both"))){
+					foreach my $include (@localincludes){
+						my $includefull = findinclude($include, 1, dirname($_[0]));
+						if($includefull ne ""){
+							unshift(@file_queue, $includefull);
+							#$outputfilestring = $outputfilestring . " \"" . $includefull . "\"";
+							$dependencies{ $_[0] } = $dependencies{ $_[0] } . " \"$includefull\"";
+						}
 					}
 				}
 			}
 		}
-		$outputfilestring = $outputfilestring . " }\n";
-		print OUTPUT $outputfilestring;
+		#$outputfilestring = $outputfilestring . " }\n";
+		#print OUTPUT $outputfilestring;
 	}
 
 	if (@file_queue > 0) {
@@ -195,7 +205,10 @@ sub compilecheck($)
 # main
 GetOptions('debug' => \$debug, 'help' => \$help, 'includepaths=s' => \@includepaths, 'maxlevel=i' => \$maxlevel, 'outputfile=s' => \$outputfile, 'exclude=s' => \$exclude, 'quotetypes=s' => \$quotetypes, 'check' => \$check);
 @includepaths = split(/,/,join(',',@includepaths)); # allow multiple --includepaths directives
+
+$debug and print "##################################################\n";
 $debug and print "@includepaths\n";
+$debug and print "##################################################\n";
 
 if ($help) {
 	usage();
@@ -208,15 +221,17 @@ if (!defined $ARGV[0]) {
 
 # Detect if arguments are directories or files.
 foreach $file (@ARGV){
+	# sanitize path to be absolute
+	if ($file =~ /\//) {
+		$file = Cwd::abs_path(canonpath($file));
+	}
+	
 	# add supplied source files to the queue
 	matchfile($file);
 
-	# argument starts with / or ./, must be directory: search for source files
-	if (($file =~ /^\//) || ($file =~ /\.\//)) {
+	if(-d $file){
 		find (\&wanted, $file);
 	}
-
-	#print "$file\n";
 }
 
 # Queue now filled with 0th level files, insert sentinel
@@ -224,6 +239,8 @@ unshift(@file_queue, "levelmarker");
 
 $debug and printqueue();
 open(OUTPUT,">$outputfile");
+
+parsefileforheaders(pop(@file_queue)); # start at back of queue
 
 my $header=<<END;
 digraph "source tree" {
@@ -236,8 +253,8 @@ digraph "source tree" {
 END
 
 print OUTPUT $header;
-
-parsefileforheaders(pop(@file_queue)); # start at back of queue
-
+while ( my ($key, $value) = each(%dependencies) ) {
+        print OUTPUT "\"$key\" -> {$value }\n";
+}
 print OUTPUT "}\n";
 close(OUTPUT);
