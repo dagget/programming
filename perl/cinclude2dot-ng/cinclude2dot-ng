@@ -9,64 +9,181 @@ use strict;
 use warnings;
 use Getopt::Long;
 use File::Find;
+use File::Basename;
 use Cwd;
 
 my $file="";
+my $level=0;
 my @file_queue;
-my @globbed;
 
-#my %Options = ( "" => \$files_to_target, "" => \$result_files, "" => \$files_from_target, "" => \$user, "" => \$password, "" => \$location, "" => \$commands);
+# options
+my $debug = '';
+my $help = '';
+my @includepaths;
+my $maxlevel = 0;
+my $outputfile="./out.dot";
 
 sub usage()
 {
-	print "$0\n";
+	print "$0 [file] [directory]\n";
+	print "Supply one or more files / directories to search for source files\n";
+	print "If no files are supplied, the current directory is used\n";
 	print "Please define the following options:\n";
-	print "\t--=\"\"\n";
+	print "\t--debug        = be verbose\n";
+	print "\t--includepaths = a comma separated list of include paths to search\n";
+	print "\t--maxlevel     = fill the include 'tree' up to maxlevel levels deep (default = 1)\n";
+	print "\t--outputfile   = fill the include 'tree' up to maxlevel levels deep (default = ./out.dot)\n";
 
 	exit(1);
 }
 
-sub wanted {
-# this subroutine gets called once for each file
-# Inside this subroutine, $_ is set to the
-# name of the current file and the current
-# directory is the directory where that file 
-# is stored
+sub wanted()
+{
 	my $pwd = cwd();
-	print "The file: $pwd/$_\n";
+	$debug and print "parsing subdirs: $pwd/$_\n";
 	matchfile($pwd."/".$_);
-	
 }
 
 sub matchfile($)
 {
-	# match any file ending in .c .C .cc .cxx .cpp .h .hpp .hxx
-	($_[0] =~ /.*\.[cC]{0,2}$/ or $_[0] =~ /.*\.cpp$/ or $_[0] =~ /.*\.cxx$/ or $_[0] =~ /.*\.h$/ or $_[0] =~ /.*\.hpp$/ or $_[0] =~ /.*\.hxx$/) and push(@file_queue, $_[0]);
+# match any file ending in .c .C .cc .CC .cxx .cpp .h .hpp .hxx
+	($_[0] =~ /.*\.[cC]{1,2}$/ or $_[0] =~ /.*\.cpp$/ or $_[0] =~ /.*\.cxx$/ or $_[0] =~ /.*\.h$/ or $_[0] =~ /.*\.hpp$/ or $_[0] =~ /.*\.hxx$/) and push(@file_queue, $_[0]);
+}
+
+sub printqueue()
+{
+	print "The queue\n";
+	foreach $file (@file_queue){
+		print "$file\n";
+	}
+}
+
+sub findinclude($$$)
+{
+	my $include          = $_[0];
+	my $localinclude     = $_[1];
+	my $localincludepath = $_[2];
+
+	if ($localinclude) {
+		if(-e $localincludepath."/".$include){
+			$debug and print "Found include $include in $localincludepath\n";
+			return $localincludepath."/".$include;
+		}
+	}
+
+	foreach my $includepath (@includepaths){
+		if(-e $includepath."/".$include){
+			$debug and print "Found include $include in $includepath\n";
+			return $includepath."/".$include;
+		}
+	}
+
+	print "Could not find $include\n";
+	return "";
+}
+
+sub parsefileforheaders($)
+{
+	$level >= $maxlevel and return;
+
+	if ($_[0] eq "levelmarker") {
+		$level++;
+		unshift(@file_queue, "levelmarker");
+		$debug and printqueue();
+
+	} else {
+		$debug and print "parsing file $_[0] for headers\n";
+
+		my $outputfilestring = "\"$_[0]\" -> {";
+		#   "putmpg.c" -> { "config.h" "global.h" "stdio.h" "stdio.h" }
+
+		if( -e $_[0]){
+			open(INPUT, "<$_[0]");
+			my @lines = <INPUT>;
+			my @includes = grep{/^\#\s*include\s+<(\S+)>$/; defined $1 and $_=$1;} @lines;
+			my @localincludes = grep{/^\#\s*include\s+"(\S+)"$/; defined $1 and $_=$1;} @lines;
+			close(INPUT);
+			
+			$debug and print "$_[0] contains @localincludes @includes\n";
+
+			# add includes with full path to queue
+			if(@includes > 0){
+				foreach my $include (@includes){
+					my $includefull = findinclude($include, 0, "");
+					if($includefull ne ""){
+						unshift(@file_queue, $includefull);
+						$outputfilestring = $outputfilestring . " \"" . $includefull . "\"";
+					}
+				}
+			}
+
+			# add local includes with full path to queue
+			if(@localincludes > 0){
+				foreach my $include (@localincludes){
+					my $includefull = findinclude($include, 1, dirname($_[0]));
+					if($includefull ne ""){
+						unshift(@file_queue, $includefull);
+						$outputfilestring = $outputfilestring . " \"" . $includefull . "\"";
+					}
+				}
+			}
+		}
+		$outputfilestring = $outputfilestring . " }\n";
+		print OUTPUT $outputfilestring;
+	}
+
+	if (@file_queue > 0) {
+		parsefileforheaders(pop(@file_queue));
+	}
 }
 
 ################################################################################
 # main
+GetOptions('debug' => \$debug, 'help' => \$help, 'includepaths=s' => \@includepaths, 'maxlevel=i' => \$maxlevel, 'outputfile=s' => \$outputfile);
+@includepaths = split(/,/,join(',',@includepaths)); # allow multiple --includepaths directives
+$debug and print "@includepaths\n";
+
+if ($help) {
+	usage();
+}
+
+# Use default of ./ if no argument is supplied
+if (!defined $ARGV[0]) {
+	push(@ARGV, "./");
+}
 
 # Detect if arguments are directories or files.
-# In the case of directories, just add all *.c *.cpp *.h *.hpp files to the list
-
 foreach $file (@ARGV){
-
+	# add supplied source files to the queue
 	matchfile($file);
 
-	# if file starts with / or ./ search for files ending in .c .C .cc .cxx .cpp .h .hpp .hxx
+	# argument starts with / or ./, must be directory: search for source files
 	if (($file =~ /^\//) || ($file =~ /\.\//)) {
 		find (\&wanted, $file);
-		#opendir(my $dh, $file) || die "can't opendir $file: $!";
-		#@globbed = grep { (/.*\.[cC]{1,2}$/ or /.*\.cpp$/ or /.*\.cxx$/ or /.*\.h$/ or /.*\.hpp$/ or /.*\.hxx$/) && -f "$file/$_" } readdir($dh);
-		#closedir $dh;
 	}
-	#push(@file_queue, @globbed);
 
-	print "$file\n";
+	#print "$file\n";
 }
 
-print "The queue\n";
-foreach $file (@file_queue){
-	print "$file\n";
-}
+# Queue now filled with 0th level files, insert sentinel
+unshift(@file_queue, "levelmarker");
+
+$debug and printqueue();
+open(OUTPUT,">$outputfile");
+
+my $header=<<END;
+digraph "source tree" {
+    overlap=scale;
+    size="8,10";
+    ratio="fill";
+    fontsize="16";
+    fontname="Helvetica";
+    clusterrank="local";
+END
+
+print OUTPUT $header;
+
+parsefileforheaders(pop(@file_queue)); # start at back of queue
+
+print OUTPUT "}\n";
+close(OUTPUT);
