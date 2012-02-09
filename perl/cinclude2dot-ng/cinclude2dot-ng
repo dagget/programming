@@ -19,6 +19,7 @@ use warnings;
 use Getopt::Long;
 use File::Find;
 use File::Basename;
+use File::Spec::Functions;
 use Cwd;
 
 my $file = "";
@@ -90,18 +91,21 @@ sub findinclude($$$)
 	my $include          = $_[0];
 	my $localinclude     = $_[1];
 	my $localincludepath = $_[2];
+	my $sanitized        = "";
 
 	if ($localinclude) {
-		if(-e $localincludepath."/".$include){
+		$sanitized = Cwd::abs_path(canonpath($localincludepath."/".$include));
+		if(-e $sanitized ){
 			$debug and print "Found include $include in $localincludepath\n";
-			return $localincludepath."/".$include;
+			return $sanitized;
 		}
 	}
 
 	foreach my $includepath (@includepaths){
-		if(-e $includepath."/".$include){
+		$sanitized = Cwd::abs_path(canonpath($includepath."/".$include));
+		if(-e $sanitized){
 			$debug and print "Found include $include in $includepath\n";
-			return $includepath."/".$include;
+			return $sanitized;
 		}
 	}
 
@@ -201,7 +205,10 @@ sub compilecheck($)
 # main
 GetOptions('debug' => \$debug, 'help' => \$help, 'includepaths=s' => \@includepaths, 'maxlevel=i' => \$maxlevel, 'outputfile=s' => \$outputfile, 'exclude=s' => \$exclude, 'quotetypes=s' => \$quotetypes, 'check' => \$check);
 @includepaths = split(/,/,join(',',@includepaths)); # allow multiple --includepaths directives
+
+$debug and print "##################################################\n";
 $debug and print "@includepaths\n";
+$debug and print "##################################################\n";
 
 if ($help) {
 	usage();
@@ -214,15 +221,17 @@ if (!defined $ARGV[0]) {
 
 # Detect if arguments are directories or files.
 foreach $file (@ARGV){
+	# sanitize path to be absolute
+	if ($file =~ /\//) {
+		$file = Cwd::abs_path(canonpath($file));
+	}
+	
 	# add supplied source files to the queue
 	matchfile($file);
 
-	# argument starts with / or ./, must be directory: search for source files
-	if (($file =~ /^\//) || ($file =~ /\.\//)) {
+	if(-d $file){
 		find (\&wanted, $file);
 	}
-
-	#print "$file\n";
 }
 
 # Queue now filled with 0th level files, insert sentinel
