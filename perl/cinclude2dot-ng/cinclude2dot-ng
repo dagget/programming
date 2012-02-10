@@ -44,15 +44,15 @@ sub usage()
 	print "Supply one or more files / directories to search for source files\n";
 	print "If no files are supplied, the current directory is used\n";
 	print "Please define the following options:\n";
-	print "\t--debug\t\t= be verbose\n";
+	print "\t--debug\t\t\t= be verbose\n";
 	print "\t--includepaths\t\t= a comma separated list of include paths to search\n";
 	print "\t--maxlevel\t\t= fill the include 'tree' up to maxlevel levels deep (default = 1)\n";
-	print "\t--outputfile\t\t= fill the include 'tree' up to maxlevel levels deep (default = ./out.dot)\n";
+	print "\t--outputfile\t\t= the name and location of the dotfile (default = ./out.dot)\n";
 	print "\t--exclude\t\t= a perl regex of files to exclude\n";
 	print "\t--quotetypes\t\t= quote, angle or both (default).\n";
 	print "\t\t\t\tquote - Include only non-local headers (<>)\n";
 	print "\t\t\t\tangle - Include only local headers (\"\")\n";
-	print "\t--check\t\t= try to compile header\n";
+	print "\t--check\t\t\t= try to compile header\n";
 
 	exit(1);
 }
