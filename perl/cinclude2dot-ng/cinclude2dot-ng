@@ -205,15 +205,20 @@ sub tidypath($)
 	# ./file.c
 	$tidied !~ /^\// and $tidied = cwd() . "/" . $tidied;
 
-	# remove the pattern /dir/./file.c
-	$tidied = canonpath($tidied);
-
 	# check for file existance and remove these patterns:
 	# /dir/../file.c
 	# /dir/dir/../../dir/../file.c
-	$tidied = Cwd::abs_path($tidied);
+	while($tidied =~ m#/[^/]*/\.\./#){
+		$tidied =~ s#/[^/]*/\.\./#/#g;
+	}
+	
+	# remove the pattern /dir/./file.c
+	$tidied = canonpath($tidied);
 
-	defined $tidied and return $tidied;
+	if(-e $tidied){
+		return $tidied;
+	}
+
 	return "";
 }
 
