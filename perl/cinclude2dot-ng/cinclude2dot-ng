@@ -21,12 +21,16 @@ use File::Find;
 use File::Basename;
 use File::Spec::Functions;
 use Cwd;
+use Term::ReadKey;
 
 my $file = "";
 my $level = 0;
 my @file_queue;
 my $gcc = `which gcc`;
 my %dependencies;
+
+(my $wchar, undef, undef, undef) = GetTerminalSize();
+my $hline = '#'x$wchar;
 
 # options
 my $debug = '';
@@ -60,7 +64,7 @@ sub usage()
 sub wanted()
 {
 	my $pwd = cwd();
-	$debug and print "parsing subdirs: $pwd/$_\n";
+	$debug and print "scanning subdirs: $pwd/$_\n";
 	matchfile($pwd."/".$_);
 
 }
@@ -80,7 +84,6 @@ sub matchfile($)
 
 sub printqueue()
 {
-	print "The queue\n";
 	foreach $file (@file_queue){
 		print "$file\n";
 	}
@@ -121,12 +124,16 @@ sub parsefileforheaders($)
 {
 	$level >= $maxlevel and return;
 
-	if ($_[0] eq "levelmarker") {
+	if ($_[0] =~ /^level=\d+$/) {
 		$level++;
-		unshift(@file_queue, "levelmarker");
+		unshift(@file_queue, "level=$level");
+		$debug and print "$hline\n";
+		$debug and print "Queue marker found for level $level, queue contents:\n";
 		$debug and printqueue();
+		$debug and print "$hline\n";
 
 	} else {
+		$debug and print "$hline\n";
 		$debug and print "parsing file $_[0] for headers\n";
 		$debug and $check and print "checking if $_[0] compiles\n";
 		if($check){
@@ -147,7 +154,8 @@ sub parsefileforheaders($)
 				my @localincludes = grep{/^\#\s*include\s+"(\S+)"$/; defined $1 and $_=$1;} @lines;
 				close(INPUT);
 				
-				$debug and print "$_[0] contains @localincludes @includes\n";
+				$debug and (scalar @localincludes and print "$_[0] local includes: @localincludes\n") or (print "$_[0] contains no local includes\n");
+				$debug and (scalar @includes and print "$_[0] includes: @includes\n") or (print "$_[0] contains no includes\n");
 
 				# add includes with full path to queue
 				if((@includes > 0) && (($quotetypes eq "angle") || ($quotetypes eq "both"))){
@@ -219,6 +227,7 @@ sub tidypath($)
 		return $tidied;
 	}
 
+	$debug and print "$tidied does not exist\n";
 	return "";
 }
 
@@ -227,9 +236,10 @@ sub tidypath($)
 GetOptions('debug' => \$debug, 'help' => \$help, 'includepaths=s' => \@includepaths, 'maxlevel=i' => \$maxlevel, 'outputfile=s' => \$outputfile, 'exclude=s' => \$exclude, 'quotetypes=s' => \$quotetypes, 'check' => \$check);
 @includepaths = split(/,/,join(',',@includepaths)); # allow multiple --includepaths directives
 
-$debug and print "##################################################\n";
+$debug and print "$hline\n";
+$debug and print "The includepaths searched:\n";
 $debug and print "@includepaths\n";
-$debug and print "##################################################\n";
+$debug and print "$hline\n";
 
 if ($help) {
 	usage();
@@ -254,9 +264,11 @@ foreach $file (@ARGV){
 }
 
 # Queue now filled with 0th level files, insert sentinel
-unshift(@file_queue, "levelmarker");
+unshift(@file_queue, "level=$level");
 
+$debug and print "Files in layer $level\n";
 $debug and printqueue();
+$debug and print "$hline\n";
 open(OUTPUT,">$outputfile");
 
 parsefileforheaders(pop(@file_queue)); # start at back of queue
@@ -273,7 +285,7 @@ END
 
 print OUTPUT $header;
 while ( my ($key, $value) = each(%dependencies) ) {
-        print OUTPUT "\t\"$key\" -> {$value }\n";
+        print OUTPUT "\"$key\" -> {$value }\n";
 }
 print OUTPUT "}\n";
 close(OUTPUT);
