@@ -205,6 +205,10 @@ sub compilecheck($)
 sub tidypath($)
 {
 	my $tidied = $_[0];
+
+    # expand tilde as full homedir
+    $tidied =~ s/^~/$ENV{"HOME"}/;
+
 	# add a full path to the following patterns:
 	# file.c
 	# dir/file.c
