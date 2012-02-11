@@ -127,14 +127,12 @@ sub parsefileforheaders($)
 	if ($_[0] =~ /^level=\d+$/) {
 		$level++;
 		unshift(@file_queue, "level=$level");
-		$debug and print "$hline\n";
 		$debug and print "Queue marker found for level $level, queue contents:\n";
 		$debug and printqueue();
 		$debug and print "$hline\n";
 
 	} else {
-		$debug and print "$hline\n";
-		$debug and print "parsing file $_[0] for headers\n";
+		$debug and print "Scanning file          : $_[0]\n";
 		$debug and $check and print "checking if $_[0] compiles\n";
 		if($check){
 			if(compilecheck($_[0])){
@@ -154,8 +152,8 @@ sub parsefileforheaders($)
 				my @localincludes = grep{/^\#\s*include\s+"(\S+)"$/; defined $1 and $_=$1;} @lines;
 				close(INPUT);
 				
-				$debug and (scalar @localincludes and print "$_[0] local includes: @localincludes\n") or (print "$_[0] contains no local includes\n");
-				$debug and (scalar @includes and print "$_[0] includes: @includes\n") or (print "$_[0] contains no includes\n");
+				$debug and (scalar @localincludes and print "Scanned local includes : @localincludes\n") or (print "Did not find local includes\n");
+				$debug and (scalar @includes and print "Scanned includes       : @includes\n") or (print "Did not find includes\n");
 
 				# add includes with full path to queue
 				if((@includes > 0) && (($quotetypes eq "angle") || ($quotetypes eq "both"))){
@@ -179,6 +177,7 @@ sub parsefileforheaders($)
 					}
 				}
 			}
+			$debug and print "$hline\n";
 		}
 	}
 
@@ -262,6 +261,7 @@ foreach $file (@ARGV){
 		}
 	}
 }
+$debug and print "$hline\n";
 
 # Queue now filled with 0th level files, insert sentinel
 unshift(@file_queue, "level=$level");
