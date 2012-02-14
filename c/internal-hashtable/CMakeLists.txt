@@ -4,3 +4,8 @@ add_executable(demo main.c)
 add_library(inthash SHARED inthash.c)
 target_link_libraries(demo inthash cunit)
 SET(CMAKE_CXX_COMPILER "g++")
+SET(CMAKE_C_COMPILER "gcc")
+
+SET(CMAKE_BUILD_TYPE Debug)
+
+#SET(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-g")
