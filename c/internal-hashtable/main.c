@@ -48,14 +48,18 @@ void testhremove(void)
 void testhinsertremove(void)
 {
 	CU_ASSERT(0 == hinsert(1,5));
+	CU_ASSERT(0 == hremove(1));
 }
 
 void testmanyhinserts(void)
 {
 	int i = 0;
-	for (i = 0; i < 30; i++) {
+	for (i = 0; i < (HASHSIZ); i++) {
 		CU_ASSERT(0 == hinsert(i,10));
 	}
+	printhash();
+
+	CU_ASSERT(-1 == hinsert(HASHSIZ,10));
 }
 
 int main(int argc, char **argv)

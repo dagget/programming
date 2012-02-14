@@ -9,7 +9,7 @@
  * lists.
  */
 
-static void printhash(void)
+void printhash(void)
 {
 	int i;
 
@@ -25,7 +25,7 @@ static int hash(int key)
 {
 	int position = key % HASHSIZ;
 
-	if ( 0 <= position < HASHSIZ)
+	if (( 0 <= position) && (position < HASHSIZ))
 		return position;
 	else
 		return -1;
@@ -33,7 +33,12 @@ static int hash(int key)
 
 static int rehash(int position)
 {
-	return ++position;
+	position++;
+
+	if (( 0 <= position) && (position < HASHSIZ))
+		return position;
+	else
+		return -1;
 }
 
 static int search_item_with_key(int key)
@@ -68,7 +73,6 @@ static int search_for_empty_slot(int key)
 		else {
 			for(slots = 0; slots < HASHSIZ; slots++){
 				position = rehash(position);
-				printf("mhfm position: %d\n", position);
 				if((hashtable[position].key == -1) || (hashtable[position].deleted))
 					return position;
 			}
@@ -88,9 +92,7 @@ int hinsert(int key, int value)
 		hashtable[position].value = value;
 		return 0;
 	} else {
-		printf("need to find free spot\n");
 		if((position = search_for_empty_slot(key)) != -1){
-			printf("found it: %d\n", position);
 			hashtable[position].key = key;
 			hashtable[position].value = value;
 			hashtable[position].deleted = 0;
