@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+
+set -x
+
+BASEDIR="/home/micha"
+NINJAREMOTE="https://github.com/martine/ninja.git"
+NINJALOCAL="ninja"
+CMAKEREMOTE="git://cmake.org/cmake.git"
+CMAKELOCAL="cmake"
+CMAKEINSTALL="cmakelatest"
+RESULT=0
+NEW=0
+
+# retrieve / update
+function retrieve {
+	REMOTE=$1
+	LOCAL=$2
+	if [ ! -d $BASEDIR/$LOCAL ]
+	then
+		git clone $REMOTE
+		RESULT=$?
+		NEW=1
+	else
+		cd $BASEDIR/$LOCAL
+		git pull
+		cd -
+		RESULT=$?
+	fi
+
+	if [ $RESULT -ne 0 ]
+	then
+		echo "Failed to retrieve $LOCAL"
+		exit 1
+	fi
+}
+
+
+# MAIN
+retrieve $NINJAREMOTE $NINJALOCAL
+retrieve $CMAKEREMOTE $CMAKELOCAL
+
+# If new clone for cmake, checkout to 'next' branch first
+if [ $NEW -eq 1 ]
+then
+	cd $BASEDIR/$CMAKELOCAL
+	git checkout -t origin/next
+	cd -
+	RESULT=$?
+
+	if [ $RESULT -ne 0 ]
+	then
+		echo "Failed to switch to next branch"
+		exit 1
+	fi
+fi
+
+# Build ninja
+cd $BASEDIR/$NINJALOCAL
+./bootstrap.py
+RESULT=$?
+cd -
+
+if [ $RESULT -ne 0 ]
+then
+	echo "Failed to build ninja"
+	exit 1
+fi
+
+# Build cmake
+rm -rf $BASEDIR/$CMAKEINSTALL
+cd $BASEDIR/$CMAKELOCAL
+./bootstrap --prefix=$BASEDIR/$CMAKEINSTALL && make && make install
+RESULT=$?
+cd -
+
+if [ $RESULT -ne 0 ]
+then
+	echo "Failed to build cmake"
+	exit 1
+fi
+
