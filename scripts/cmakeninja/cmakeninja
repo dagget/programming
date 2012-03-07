@@ -17,8 +17,10 @@ NINJALOCAL="ninja"
 CMAKEREMOTE="git://cmake.org/cmake.git"
 CMAKELOCAL="cmake"
 CMAKEINSTALL="cmakelatest"
+OUTPUT=''
 RESULT=0
-NEW=0
+NEWCMAKE=0
+NEWNINJA=0
 
 # retrieve / update
 function retrieve {
@@ -31,7 +33,7 @@ function retrieve {
 		NEW=1
 	else
 		cd $BASEDIR/$LOCAL
-		git pull
+		OUTPUT=`git pull`
 		cd -
 		RESULT=$?
 	fi
@@ -45,11 +47,15 @@ function retrieve {
 
 
 # MAIN
-retrieve $NINJAREMOTE $NINJALOCAL
 retrieve $CMAKEREMOTE $CMAKELOCAL
+if [ $NEW -eq 1 ]
+then
+    NEWCMAKE=1
+    NEW=0
+fi
 
 # If new clone for cmake, checkout to 'next' branch first
-if [ $NEW -eq 1 ]
+if [ $NEWCMAKE -eq 1 ]
 then
 	cd $BASEDIR/$CMAKELOCAL
 	git checkout -t origin/next
@@ -61,30 +67,47 @@ then
 		echo "Failed to switch to next branch"
 		exit 1
 	fi
-fi
-
-# Build ninja
-cd $BASEDIR/$NINJALOCAL
-./bootstrap.py
-RESULT=$?
-cd -
-
-if [ $RESULT -ne 0 ]
-then
-	echo "Failed to build ninja"
-	exit 1
+else
+    if [ $OUTPUT != "Already up to date." ]
+    then
+        NEWCMAKE=1
+    fi
 fi
 
 # Build cmake
-rm -rf $BASEDIR/$CMAKEINSTALL
-cd $BASEDIR/$CMAKELOCAL
-./bootstrap --prefix=$BASEDIR/$CMAKEINSTALL && make && make install
-RESULT=$?
-cd -
-
-if [ $RESULT -ne 0 ]
+if [ $NEWCMAKE -eq 1 ]
 then
-	echo "Failed to build cmake"
-	exit 1
+    rm -rf $BASEDIR/$CMAKEINSTALL
+    cd $BASEDIR/$CMAKELOCAL
+    ./bootstrap --prefix=$BASEDIR/$CMAKEINSTALL && make && make install
+    RESULT=$?
+    cd -
+
+    if [ $RESULT -ne 0 ]
+    then
+        echo "Failed to build cmake"
+        exit 1
+    fi
 fi
 
+retrieve $NINJAREMOTE $NINJALOCAL
+if [ $NEW -eq 1 ]
+then
+    NEWNINJA=1
+    NEW=0
+fi
+
+# Build ninja
+if [ $NEWNINJA -eq 1 ]
+then
+    cd $BASEDIR/$NINJALOCAL
+    ./bootstrap.py
+    RESULT=$?
+    cd -
+
+    if [ $RESULT -ne 0 ]
+    then
+        echo "Failed to build ninja"
+        exit 1
+    fi
+fi
