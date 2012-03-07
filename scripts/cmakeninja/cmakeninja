@@ -1,8 +1,17 @@
 #!/usr/bin/env bash
 
-set -x
+# This is a quick script to retrieve the latest cmake & ninja. It has not
+# been made robust enough yet, but does the job for me.
 
-BASEDIR="/home/micha"
+# set -x
+
+if [ -d $HOME ]
+then
+    BASEDIR="$HOME"
+else
+    echo "Could not detect home directory"
+fi
+
 NINJAREMOTE="https://github.com/martine/ninja.git"
 NINJALOCAL="ninja"
 CMAKEREMOTE="git://cmake.org/cmake.git"
