@@ -3,7 +3,7 @@
 # This is a quick script to retrieve the latest cmake & ninja. It has not
 # been made robust enough yet, but does the job for me.
 
-# set -x
+#set -x
 
 if [ -d $HOME ]
 then
@@ -19,6 +19,7 @@ CMAKELOCAL="cmake"
 CMAKEINSTALL="cmakelatest"
 OUTPUT=''
 RESULT=0
+NEW=0
 NEWCMAKE=0
 NEWNINJA=0
 
@@ -68,9 +69,10 @@ then
 		exit 1
 	fi
 else
-    if [ $OUTPUT != "Already up to date." ]
+    if [ "$OUTPUT" != 'Already up-to-date.' ]
     then
         NEWCMAKE=1
+	OUTPUT=''
     fi
 fi
 
@@ -95,6 +97,12 @@ if [ $NEW -eq 1 ]
 then
     NEWNINJA=1
     NEW=0
+else
+    if [ "$OUTPUT" != 'Already up-to-date.' ]
+    then
+        NEWCMAKE=1
+	OUTPUT=''
+    fi
 fi
 
 # Build ninja
