@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+# This is a small Python project to implement automatic continuous build for my projects.
+# I currently have 3 types of builds: linux arm, linux x86 and windows x86. This tool
+# needs to check the branches periodically to see if I have committed anywhere, and 
+# automatically start a build.
+
 import os
 import getopt
 import sys
@@ -10,12 +15,23 @@ import pysvn
 import Queue
 import random
 
+
+## TODO
+# -- add check to create local builddirs
+# -- add logging
+# -- add build/skip mail
+# -- add call to buildstep
+# -- add git repo support
+
+
 verbose = False
 QueueLen    = 48
 linuxArmQ   = Queue.PriorityQueue(QueueLen)
 linuxX86Q   = Queue.PriorityQueue(QueueLen)
 windowsX86Q = Queue.PriorityQueue(QueueLen)
 branchPreviousBuilds = {}
+SubversionUser = ''
+SubversionPassword = ''
 
 ##################################################################################
 class Build:
@@ -40,6 +56,10 @@ class ThreadClass(threading.Thread):
 			self.queue.task_done()
 
 ##################################################################################
+def get_login( realm, username, may_save ):
+	"""callback implementation for Subversion login"""
+	return True, SubversionUser, SubversionPassword, True
+
 def addToBuildQueues(svnBranch):
 		global linuxArmQ 
 		global linuxX86Q 
@@ -71,6 +91,13 @@ def addSubversionBuilds(svnRepository, svnUser, svnPassword):
 		print 'Using Subversion password  : ' + svnPassword
 	
 	client = pysvn.Client()
+	client.callback_get_login = get_login
+	global SubversionUser
+	global SubversionPassword
+
+	SubversionUser = svnUser
+	SubversionPassword = svnPassword
+
 	# find branch names
 	branchList = client.list(svnRepository + '/branches', depth=pysvn.depth.immediates)
 
