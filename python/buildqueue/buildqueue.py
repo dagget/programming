@@ -31,8 +31,9 @@ class ThreadClass(threading.Thread):
 		now = datetime.datetime.now()
 		print "%s started at time: %s" % (self.name, now)
 		while True:
-			build = self.queue.get()
-			print self.name + ': received build ' + build.path + ' with rev: ' + str(build.previousRevision)
+			# returned value consists of: priority, sortorder, build object
+			item = self.queue.get()
+			print self.name + ': received build ' + item[2].path + ' with rev: ' + str(item[2].previousRevision)
 			self.queue.task_done()
 
 ##################################################################################
@@ -65,9 +66,10 @@ def addSubversionBuilds(svnRepository, svnUser, svnPassword):
 		global linuxX86Q 
 		global windowsX86Q
 
-		linuxArmQ.put(Build(branch[0].repos_path, branch[0].created_rev.number))
-		linuxX86Q.put(Build(branch[0].repos_path, branch[0].created_rev.number))
-		windowsX86Q.put(Build(branch[0].repos_path, branch[0].created_rev.number))
+		# for now jus assing one priority. The second argument is used for sorting within a priority level
+		linuxArmQ.put_nowait((1, 1, Build(branch[0].repos_path, branch[0].created_rev.number)))
+		linuxX86Q.put_nowait((1, 1, Build(branch[0].repos_path, branch[0].created_rev.number)))
+		windowsX86Q.put_nowait((1, 1, Build(branch[0].repos_path, branch[0].created_rev.number)))
 
 def usage():
 	print ''
