@@ -23,7 +23,24 @@ def addSubversionBuilds(svnRepository, svnUser, svnPassword):
 		print 'Using Subversion password  : ' + svnPassword
 	
 	client = pysvn.Client()
-	client.list(svnRepository + '/branches', depth=pysvn.depth.immediates)
+	# find branch names
+	branchList = client.list(svnRepository + '/branches', depth=pysvn.depth.immediates)
+
+	# find branch revisions
+	branchRevisionList = []
+
+	for branch in branchList[1:]:
+		try:
+				branchRevisionList += client.list( branch[0].path + '/3-Code', depth=pysvn.depth.empty)
+		except pysvn.ClientError, e:
+			# convert to a string
+			print 'Error: ' + str(e)
+
+	branchRevisionList += client.list(svnRepository + '/trunk/3-Code', depth=pysvn.depth.empty)
+
+	if(verbose):
+		for branch in branchRevisionList[:]:
+			print 'Found branch: ' +  branch[0].repos_path + ' with revsion ' + str(branch[0].created_rev.number)
 
 def usage():
 	print ''
