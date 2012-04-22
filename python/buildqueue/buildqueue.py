@@ -8,18 +8,19 @@ import time
 import threading
 import pysvn
 import Queue
+import random
 
 verbose = False
 QueueLen    = 48
 linuxArmQ   = Queue.PriorityQueue(QueueLen)
 linuxX86Q   = Queue.PriorityQueue(QueueLen)
 windowsX86Q = Queue.PriorityQueue(QueueLen)
+branchPreviousBuilds = {}
 
 ##################################################################################
 class Build:
-	def __init__(self, path, revision):
+	def __init__(self, path):
 		self.path = path
-		self.previousRevision = revision
 
 class ThreadClass(threading.Thread):
 	def __init__(self, queue, name):
@@ -33,10 +34,36 @@ class ThreadClass(threading.Thread):
 		while True:
 			# returned value consists of: priority, sortorder, build object
 			item = self.queue.get()
-			print self.name + ': received build ' + item[2].path + ' with rev: ' + str(item[2].previousRevision)
+			# pretend we're doing something that takes 10-100 ms
+			time.sleep(random.randint(10, 100) / 1000.0)
+			print self.name + ': done build ' + item[2].path
 			self.queue.task_done()
 
 ##################################################################################
+def addToBuildQueues(svnBranch):
+		global linuxArmQ 
+		global linuxX86Q 
+		global windowsX86Q
+
+		# for now jus assing one priority. The second argument is used for sorting within a priority level
+		try:
+			linuxArmQ.put_nowait((1, 1, Build(svnBranch)))
+		except Queue.Full:
+			if(verbose):
+				print 'Linux Arm queue full, skipping: ' + svnBranch
+
+		try:
+			linuxX86Q.put_nowait((1, 1, Build(svnBranch)))
+		except Queue.Full:
+			if(verbose):
+				print 'Linux X86 queue full, skipping: ' + svnBranch
+
+		try:
+			windowsX86Q.put_nowait((1, 1, Build(svnBranch)))
+		except Queue.Full:
+			if(verbose):
+				print 'Windows X86 queue full, skipping: ' + svnBranch
+
 def addSubversionBuilds(svnRepository, svnUser, svnPassword):
 	if(verbose):
 		print 'Using Subversion repository: ' + svnRepository
@@ -52,7 +79,7 @@ def addSubversionBuilds(svnRepository, svnUser, svnPassword):
 
 	for branch in branchList[1:]:
 		try:
-				branchRevisionList += client.list( branch[0].path + '/3-Code', depth=pysvn.depth.empty)
+			branchRevisionList += client.list( branch[0].path + '/3-Code', depth=pysvn.depth.empty)
 		except pysvn.ClientError, e:
 			# convert to a string
 			print 'Error: ' + str(e)
@@ -62,14 +89,18 @@ def addSubversionBuilds(svnRepository, svnUser, svnPassword):
 	for branch in branchRevisionList[:]:
 		if(verbose):
 			print 'Found branch: ' +  branch[0].repos_path + ' with revision ' + str(branch[0].created_rev.number)
-		global linuxArmQ 
-		global linuxX86Q 
-		global windowsX86Q
 
-		# for now jus assing one priority. The second argument is used for sorting within a priority level
-		linuxArmQ.put_nowait((1, 1, Build(branch[0].repos_path, branch[0].created_rev.number)))
-		linuxX86Q.put_nowait((1, 1, Build(branch[0].repos_path, branch[0].created_rev.number)))
-		windowsX86Q.put_nowait((1, 1, Build(branch[0].repos_path, branch[0].created_rev.number)))
+		# check if there was a previous build, and if current revision is newer
+		global branchPreviousBuilds
+
+		if branch[0].repos_path in branchPreviousBuilds:
+			if branch[0].created_rev.number > branchPreviousBuilds[branch[0].repos_path]:
+				addToBuildQueues(branch[0].repos_path)
+			else:
+				print'Branch ' + branch[0].repos_path + ' is has not been updated. Skipping build'
+		else:
+			branchPreviousBuilds[branch[0].repos_path] = branch[0].created_rev.number
+			addToBuildQueues(branch[0].repos_path)
 
 def usage():
 	print ''
