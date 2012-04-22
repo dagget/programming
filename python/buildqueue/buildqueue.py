@@ -45,7 +45,7 @@ def addToBuildQueues(svnBranch):
 		global linuxX86Q 
 		global windowsX86Q
 
-		# for now jus assing one priority. The second argument is used for sorting within a priority level
+		# for now just using one priority. The second argument is used for sorting within a priority level
 		try:
 			linuxArmQ.put_nowait((1, 1, Build(svnBranch)))
 		except Queue.Full:
