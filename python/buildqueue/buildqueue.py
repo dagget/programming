@@ -3,17 +3,37 @@
 import os
 import getopt
 import sys
+import datetime
 import time
-import thread
+import threading
 import pysvn
+import Queue
 
 verbose = False
+QueueLen    = 48
+linuxArmQ   = Queue.PriorityQueue(QueueLen)
+linuxX86Q   = Queue.PriorityQueue(QueueLen)
+windowsX86Q = Queue.PriorityQueue(QueueLen)
 
 ##################################################################################
 class Build:
 	def __init__(self, path, revision):
 		self.path = path
-		self.revision = revision
+		self.previousRevision = revision
+
+class ThreadClass(threading.Thread):
+	def __init__(self, queue, name):
+		threading.Thread.__init__(self)
+		self.queue = queue
+		self.name = name
+
+	def run(self):
+		now = datetime.datetime.now()
+		print "%s started at time: %s" % (self.name, now)
+		while True:
+			build = self.queue.get()
+			print self.name + ': received build ' + build.path + ' with rev: ' + str(build.previousRevision)
+			self.queue.task_done()
 
 ##################################################################################
 def addSubversionBuilds(svnRepository, svnUser, svnPassword):
@@ -38,9 +58,16 @@ def addSubversionBuilds(svnRepository, svnUser, svnPassword):
 
 	branchRevisionList += client.list(svnRepository + '/trunk/3-Code', depth=pysvn.depth.empty)
 
-	if(verbose):
-		for branch in branchRevisionList[:]:
-			print 'Found branch: ' +  branch[0].repos_path + ' with revsion ' + str(branch[0].created_rev.number)
+	for branch in branchRevisionList[:]:
+		if(verbose):
+			print 'Found branch: ' +  branch[0].repos_path + ' with revision ' + str(branch[0].created_rev.number)
+		global linuxArmQ 
+		global linuxX86Q 
+		global windowsX86Q
+
+		linuxArmQ.put(Build(branch[0].repos_path, branch[0].created_rev.number))
+		linuxX86Q.put(Build(branch[0].repos_path, branch[0].created_rev.number))
+		windowsX86Q.put(Build(branch[0].repos_path, branch[0].created_rev.number))
 
 def usage():
 	print ''
@@ -81,7 +108,24 @@ def main():
 		else:
 			assert False, "unhandled option"
 
-	addSubversionBuilds(svnRepository, svnUser, svnPassword)
+
+	linux_armQ = ThreadClass(linuxArmQ, 'linux-arm')
+	linux_armQ.setDaemon(True)
+	linux_armQ.start()
+	linux_x86Q = ThreadClass(linuxX86Q, 'linux-x86')
+	linux_x86Q.setDaemon(True)
+	linux_x86Q.start()
+	windows_x86Q = ThreadClass(windowsX86Q, 'windows-x86')
+	windows_x86Q.setDaemon(True)
+	windows_x86Q.start()
+
+	while True:
+		addSubversionBuilds(svnRepository, svnUser, svnPassword)
+		time.sleep(10)
+
+	linux_armQ.join()
+	linux_x86Q.join()
+	windows_x86Q.join()
 
 ##################################################################################
 if __name__ == '__main__':
