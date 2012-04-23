@@ -22,6 +22,7 @@ import random
 # -- add build/skip mail
 # -- add call to buildstep
 # -- add git repo support
+# -- replace while true with decent condition
 
 
 verbose = False
@@ -169,12 +170,15 @@ def main():
 			assert False, "unhandled option"
 
 
+	# Start build queue threads
 	linux_armQ = ThreadClass(linuxArmQ, 'linux-arm')
 	linux_armQ.setDaemon(True)
 	linux_armQ.start()
+
 	linux_x86Q = ThreadClass(linuxX86Q, 'linux-x86')
 	linux_x86Q.setDaemon(True)
 	linux_x86Q.start()
+
 	windows_x86Q = ThreadClass(windowsX86Q, 'windows-x86')
 	windows_x86Q.setDaemon(True)
 	windows_x86Q.start()
