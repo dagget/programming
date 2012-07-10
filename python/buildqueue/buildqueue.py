@@ -14,29 +14,30 @@ import threading
 import pysvn
 import Queue
 import random
+import logging
 
 
 ## TODO
 # -- add check to create local builddirs
-# -- add logging
 # -- add build/skip mail
 # -- add call to buildstep
 # -- add git repo support
 # -- replace while true with decent condition
+# -- let threads stop gracefully
+# -- add windows build
 
-
-verbose = False
 QueueLen    = 48
 linuxArmQ   = Queue.PriorityQueue(QueueLen)
 linuxX86Q   = Queue.PriorityQueue(QueueLen)
-windowsX86Q = Queue.PriorityQueue(QueueLen)
 branchPreviousBuilds = {}
 SubversionUser = ''
 SubversionPassword = ''
+log = logging.getLogger()
 
 ##################################################################################
 class Build:
-	def __init__(self, path):
+	def __init__(self, name, path):
+		self.name = name
 		self.path = path
 
 class ThreadClass(threading.Thread):
@@ -47,13 +48,15 @@ class ThreadClass(threading.Thread):
 
 	def run(self):
 		now = datetime.datetime.now()
-		print "%s started at time: %s" % (self.name, now)
+		log.debug("%s started at time: %s" % (self.name, now))
 		while True:
 			# returned value consists of: priority, sortorder, build object
 			item = self.queue.get()
+
 			# pretend we're doing something that takes 10-100 ms
 			time.sleep(random.randint(10, 100) / 1000.0)
-			print self.name + ': done build ' + item[2].path
+
+			log.debug(self.name + ': done build ' + item[2].name)
 			self.queue.task_done()
 
 ##################################################################################
@@ -61,35 +64,26 @@ def get_login( realm, username, may_save ):
 	"""callback implementation for Subversion login"""
 	return True, SubversionUser, SubversionPassword, True
 
-def addToBuildQueues(svnBranch):
+def addToBuildQueues(branchName, branchPath):
 		global linuxArmQ 
 		global linuxX86Q 
-		global windowsX86Q
+		#global windowsX86Q
 
 		# for now just using one priority. The second argument is used for sorting within a priority level
 		try:
-			linuxArmQ.put_nowait((1, 1, Build(svnBranch)))
+			linuxArmQ.put_nowait((1, 1, Build(branchName, branchPath)))
 		except Queue.Full:
-			if(verbose):
-				print 'Linux Arm queue full, skipping: ' + svnBranch
+				log.debug('Linux Arm queue full, skipping: ' + branchName)
 
 		try:
-			linuxX86Q.put_nowait((1, 1, Build(svnBranch)))
+			linuxX86Q.put_nowait((1, 1, Build(branchName, branchPath)))
 		except Queue.Full:
-			if(verbose):
-				print 'Linux X86 queue full, skipping: ' + svnBranch
-
-		try:
-			windowsX86Q.put_nowait((1, 1, Build(svnBranch)))
-		except Queue.Full:
-			if(verbose):
-				print 'Windows X86 queue full, skipping: ' + svnBranch
+				log.debug('Linux X86 queue full, skipping: ' + branchName)
 
 def addSubversionBuilds(svnRepository, svnUser, svnPassword):
-	if(verbose):
-		print 'Using Subversion repository: ' + svnRepository
-		print 'Using Subversion user      : ' + svnUser
-		print 'Using Subversion password  : ' + svnPassword
+	log.debug('Using Subversion repository: ' + svnRepository)
+	log.debug('Using Subversion user      : ' + svnUser)
+	log.debug('Using Subversion password  : ' + svnPassword)
 	
 	client = pysvn.Client()
 	client.callback_get_login = get_login
@@ -99,43 +93,22 @@ def addSubversionBuilds(svnRepository, svnUser, svnPassword):
 	SubversionUser = svnUser
 	SubversionPassword = svnPassword
 
-	# find branch names
+	# find branch names (returns a list of tuples)
 	branchList = client.list(svnRepository + '/branches', depth=pysvn.depth.immediates)
 
-	# find branch revisions
-	branchRevisionList = []
-
+	# skip the first entry in the list as it is /branches (the directory in the repo)
 	for branch in branchList[1:]:
-		try:
-			branchRevisionList += client.list( branch[0].path + '/3-Code', depth=pysvn.depth.empty)
-		except pysvn.ClientError, e:
-			# convert to a string
-			print 'Error: ' + str(e)
-
-	branchRevisionList += client.list(svnRepository + '/trunk/3-Code', depth=pysvn.depth.empty)
-
-	for branch in branchRevisionList[:]:
-		if(verbose):
-			print 'Found branch: ' +  branch[0].repos_path + ' with revision ' + str(branch[0].created_rev.number)
-
-		# check if there was a previous build, and if current revision is newer
-		global branchPreviousBuilds
-
-		if branch[0].repos_path in branchPreviousBuilds:
-			if branch[0].created_rev.number > branchPreviousBuilds[branch[0].repos_path]:
-				addToBuildQueues(branch[0].repos_path)
-			else:
-				print'Branch ' + branch[0].repos_path + ' is has not been updated. Skipping build'
-		else:
-			branchPreviousBuilds[branch[0].repos_path] = branch[0].created_rev.number
-			addToBuildQueues(branch[0].repos_path)
+		log.debug('Found branch: ' +  os.path.basename(branch[0].repos_path) + ' created at revision ' + str(branch[0].created_rev.number))
+		addToBuildQueues(os.path.basename(branch[0].repos_path), svnRepository + branch[0].repos_path)
+	
+	addToBuildQueues('trunk', svnRepository + '/trunk')
 
 def usage():
 	print ''
 	print 'A threaded continuous buildserver'
 	print ''
 	print '-h, --help                 = print this help message'
-	print '-v, --verbose              = be verbose'
+	print '-l, --log                  = set loglevel (debug, info, warning, error, critical)'
 	print '-r, --subversionrepository = use the given subversion repository'
 	print '-u, --subversionuser       = use the given subversion user'
 	print '-p, --subversionpassword   = use the given subversion password'
@@ -144,7 +117,7 @@ def usage():
 
 def main():
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "hr:u:p:v", ["help", "subversionrepository", "subversionuser", "subversionpassword", "verbose"])
+		opts, args = getopt.getopt(sys.argv[1:], "hr:u:p:l:", ["help", "subversionrepository", "subversionuser", "subversionpassword", "log"])
 	except getopt.GetoptError, err:
 		# print help information and exit:
 		print str(err) # will print something like "option -a not recognized"
@@ -153,11 +126,11 @@ def main():
 	svnRepository = None
 	svnUser       = None
 	svnPassword   = None
+	loglevel      = 'debug'
 
 	for o, a in opts:
-		if o in ("-v", "--verbose"):
-			global verbose
-			verbose = True
+		if o in ("-l", "--log"):
+			loglevel = a 
 		elif o in ("-h", "--help"):
 			usage()
 		elif o in ("-r", "--subversionrepository"):
@@ -169,27 +142,37 @@ def main():
 		else:
 			assert False, "unhandled option"
 
+	# setup logging for both console and file
+	numeric_level = getattr(logging, loglevel.upper(), None)
+	if not isinstance(numeric_level, int):
+		    raise ValueError('Invalid log level: %s' % loglevel)
+
+	logging.basicConfig(format='%(levelname)s: %(message)s', level=numeric_level)
+	fh  = logging.FileHandler('buildbot.log')
+	fh_fmt = logging.Formatter("%(levelname)s\t: %(message)s")
+	fh.setFormatter(fh_fmt)
+	log.addHandler(fh)
+
+	log.debug('starting main loop')
 
 	# Start build queue threads
 	linux_armQ = ThreadClass(linuxArmQ, 'linux-arm')
-	linux_armQ.setDaemon(True)
-	linux_armQ.start()
-
 	linux_x86Q = ThreadClass(linuxX86Q, 'linux-x86')
+	# let threads be killed when main is killed
+	linux_armQ.setDaemon(True)
 	linux_x86Q.setDaemon(True)
-	linux_x86Q.start()
 
-	windows_x86Q = ThreadClass(windowsX86Q, 'windows-x86')
-	windows_x86Q.setDaemon(True)
-	windows_x86Q.start()
+	try:
+		linux_armQ.start()
+		linux_x86Q.start()
+	except (KeyboardInterrupt, SystemExit):
+		linux_armQ.join()
+		linux_x86Q.join()
+		sys.exit()
 
 	while True:
 		addSubversionBuilds(svnRepository, svnUser, svnPassword)
 		time.sleep(10)
-
-	linux_armQ.join()
-	linux_x86Q.join()
-	windows_x86Q.join()
 
 ##################################################################################
 if __name__ == '__main__':
