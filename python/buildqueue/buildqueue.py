@@ -26,14 +26,6 @@ import logging
 # -- let threads stop gracefully
 # -- add windows build
 
-QueueLen    = 48
-linuxArmQ   = Queue.PriorityQueue(QueueLen)
-linuxX86Q   = Queue.PriorityQueue(QueueLen)
-branchPreviousBuilds = {}
-SubversionUser = ''
-SubversionPassword = ''
-log = logging.getLogger()
-
 ##################################################################################
 class Build:
 	def __init__(self, name, path):
@@ -45,30 +37,39 @@ class ThreadClass(threading.Thread):
 		threading.Thread.__init__(self)
 		self.queue = queue
 		self.name = name
+		self.client = pysvn.Client()
 
 	def run(self):
+		self.client.callback_get_login = get_login
 		now = datetime.datetime.now()
 		log.debug("%s started at time: %s" % (self.name, now))
+		exportpath = os.environ['HOME'] + '/' + self.name + '/buildscripts'
+		try:
+			os.makedirs(exportpath)
+		except OSError:
+			if exc.errno == errno.EEXIST:
+				pass
+			else: raise
+
 		while True:
 			# returned value consists of: priority, sortorder, build object
 			item = self.queue.get()
-
-			# pretend we're doing something that takes 10-100 ms
-			time.sleep(random.randint(10, 100) / 1000.0)
+			
+			try:
+				self.client.export(item[2].path + '/3-Code/31-Build-Tools/Scripts/build-stage2.cmake', exportpath + '/' + item[2].name + '-build-stage2.cmake', recurse=False)
+			except pysvn.ClientError, e:
+				log.debug("Failed to export the buildscript for " + item[2].name + ':' + str(e))
 
 			log.debug(self.name + ': done build ' + item[2].name)
 			self.queue.task_done()
 
 ##################################################################################
+# callback needed for the subversion client
 def get_login( realm, username, may_save ):
 	"""callback implementation for Subversion login"""
 	return True, SubversionUser, SubversionPassword, True
 
 def addToBuildQueues(branchName, branchPath):
-		global linuxArmQ 
-		global linuxX86Q 
-		#global windowsX86Q
-
 		# for now just using one priority. The second argument is used for sorting within a priority level
 		try:
 			linuxArmQ.put_nowait((1, 1, Build(branchName, branchPath)))
@@ -80,18 +81,9 @@ def addToBuildQueues(branchName, branchPath):
 		except Queue.Full:
 				log.debug('Linux X86 queue full, skipping: ' + branchName)
 
-def addSubversionBuilds(svnRepository, svnUser, svnPassword):
-	log.debug('Using Subversion repository: ' + svnRepository)
-	log.debug('Using Subversion user      : ' + svnUser)
-	log.debug('Using Subversion password  : ' + svnPassword)
-	
+def addSubversionBuilds(svnRepository):
 	client = pysvn.Client()
 	client.callback_get_login = get_login
-	global SubversionUser
-	global SubversionPassword
-
-	SubversionUser = svnUser
-	SubversionPassword = svnPassword
 
 	# find branch names (returns a list of tuples)
 	branchList = client.list(svnRepository + '/branches', depth=pysvn.depth.immediates)
@@ -123,9 +115,9 @@ def main():
 		print str(err) # will print something like "option -a not recognized"
 		usage()
 
-	svnRepository = None
-	svnUser       = None
-	svnPassword   = None
+	global SubversionUser
+	global SubversionPassword
+	SubversionRepository = None
 	loglevel      = 'debug'
 
 	for o, a in opts:
@@ -134,11 +126,11 @@ def main():
 		elif o in ("-h", "--help"):
 			usage()
 		elif o in ("-r", "--subversionrepository"):
-			svnRepository = a
+			SubversionRepository = a
 		elif o in ("-u", "--subversionuser"):
-			svnUser = a
+			SubversionUser = a
 		elif o in ("-p", "--subversionpassword"):
-			svnPassword = a
+			SubversionPassword = a
 		else:
 			assert False, "unhandled option"
 
@@ -151,13 +143,25 @@ def main():
 	fh  = logging.FileHandler('buildbot.log')
 	fh_fmt = logging.Formatter("%(levelname)s\t: %(message)s")
 	fh.setFormatter(fh_fmt)
+
+	global log
+	log = logging.getLogger()
+
 	log.addHandler(fh)
 
 	log.debug('starting main loop')
 
+	QueueLen    = 48 # just a stab at a sane queue length
+	global linuxArmQ
+	global linuxX86Q
+
+	linuxArmQ   = Queue.PriorityQueue(QueueLen)
+	linuxX86Q   = Queue.PriorityQueue(QueueLen)
+
 	# Start build queue threads
 	linux_armQ = ThreadClass(linuxArmQ, 'linux-arm')
 	linux_x86Q = ThreadClass(linuxX86Q, 'linux-x86')
+
 	# let threads be killed when main is killed
 	linux_armQ.setDaemon(True)
 	linux_x86Q.setDaemon(True)
@@ -170,9 +174,14 @@ def main():
 		linux_x86Q.join()
 		sys.exit()
 
+	log.debug('Using Subversion repository: ' + SubversionRepository)
+	log.debug('Using Subversion user      : ' + SubversionUser)
+	log.debug('Using Subversion password  : ' + SubversionPassword)
+
 	while True:
-		addSubversionBuilds(svnRepository, svnUser, svnPassword)
+		addSubversionBuilds(SubversionRepository)
 		time.sleep(10)
+
 
 ##################################################################################
 if __name__ == '__main__':
