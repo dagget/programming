@@ -55,23 +55,31 @@ class ThreadClass(threading.Thread):
 		while True:
 			# returned value consists of: priority, sortorder, build object
 			item = self.queue.get()
-			buildscript = exportpath + '/' + item[2].name + '-build-stage2.cmake'
+			buildscript = exportpath + '/' + item[2].name + '-build2.cmake'
 			
 			# export the buildscript that will perform the actual build of the branch
 			try:
-				self.client.export(item[2].path + '/3-Code/31-Build-Tools/Scripts/build-stage2.cmake', buildscript, recurse=False)
+				self.client.export(item[2].path + '/3-Code/31-Build-Tools/Scripts/build2.cmake', buildscript, recurse=False)
 			except pysvn.ClientError, e:
 				log.debug("Failed to export the buildscript for " + item[2].name + ':' + str(e))
+				self.queue.task_done()
+				continue
 
 			# run the buildscript
 			try:
 				retcode = subprocess.call(["ctest --script " + buildscript + ",arch=" + self.name + "\;configonly"], shell=True)
 				if retcode < 0:
 					log.debug(self.name + " " + item[2].name + " was terminated by signal: " + str(-retcode))
+					self.queue.task_done()
+					continue	
 				else:
 					log.debug(self.name + " " + item[2].name + " returned: " + str(retcode))
+					self.queue.task_done()
+					continue
 			except OSError, e:
 				log.debug(self.name + " " + item[2].name + " execution failed: " + e)
+				self.queue.task_done()
+				continue	
 
 			log.debug(self.name + " " + item[2].name + ': done build ' + item[2].name)
 			self.queue.task_done()
@@ -102,7 +110,7 @@ def addSubversionBuilds(svnRepository):
 	branchList = client.list(svnRepository + '/branches', depth=pysvn.depth.immediates)
 
 	# skip the first entry in the list as it is /branches (the directory in the repo)
-	for branch in branchList[1:1]:
+	for branch in branchList[1:]:
 		log.debug('Found branch: ' +  os.path.basename(branch[0].repos_path) + ' created at revision ' + str(branch[0].created_rev.number))
 		addToBuildQueues(os.path.basename(branch[0].repos_path), svnRepository + branch[0].repos_path)
 	
