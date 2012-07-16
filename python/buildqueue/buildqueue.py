@@ -67,7 +67,7 @@ class ThreadClass(threading.Thread):
 
 			# run the buildscript
 			try:
-				retcode = subprocess.call(["ctest --script " + buildscript + ",arch=" + self.name + "\;configonly"], shell=True)
+				retcode = subprocess.call(["ctest --script " + buildscript + ",platform=" + self.name + "\;branch=" + item[2].name + "\;repo=" + item[2].path.replace('svn://','') + "\;repotype=svn" + "\;configonly"], shell=True)
 				if retcode < 0:
 					log.debug(self.name + " " + item[2].name + " was terminated by signal: " + str(-retcode))
 					self.queue.task_done()
@@ -113,7 +113,7 @@ def addSubversionBuilds(svnRepository):
 	for branch in branchList[1:]:
 		log.debug('Found branch: ' +  os.path.basename(branch[0].repos_path) + ' created at revision ' + str(branch[0].created_rev.number))
 		addToBuildQueues(os.path.basename(branch[0].repos_path), svnRepository + branch[0].repos_path)
-	
+
 	addToBuildQueues('trunk', svnRepository + '/trunk')
 
 def usage():
@@ -201,7 +201,7 @@ def main():
 
 	while True:
 		addSubversionBuilds(SubversionRepository)
-		time.sleep(10)
+		time.sleep(30)
 
 
 ##################################################################################
