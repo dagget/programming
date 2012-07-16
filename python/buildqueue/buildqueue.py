@@ -20,12 +20,13 @@ import subprocess
 
 
 ## TODO
-# -- add check to create local builddirs
 # -- add build/skip mail
 # -- add git repo support
 # -- replace while true with decent condition
 # -- let threads stop gracefully
 # -- add windows build
+# -- replace queue throttling with better alternative (wrap queue class and add 
+#    internal check if item is on queue for instance)
 
 ##################################################################################
 class Build:
@@ -90,17 +91,28 @@ def get_login( realm, username, may_save ):
 	"""callback implementation for Subversion login"""
 	return True, SubversionUser, SubversionPassword, True
 
-def addToBuildQueues(branchName, branchPath):
-		# for now just using one priority. The second argument is used for sorting within a priority level
-		try:
-			linuxArmQ.put_nowait((1, 1, Build(branchName, branchPath)))
-		except Queue.Full:
-				log.debug('Linux Arm queue full, skipping: ' + branchName)
+def addToBuildQueues(branchName, branchPath, numBranches):
+		# perform quick check on queuesize to see if we must throttle
+		# NOTE: this is a poor mans throttling attempt, needs replacing
+		if(linuxArmQ.qsize() >= numBranches):
+				log.debug('Linux Arm queue contains current number of branches, skipping: ' + branchName)
+		else:
+			try:
+				# for now just using one priority. The second argument is used for sorting within a priority level
+				linuxArmQ.put_nowait((1, 1, Build(branchName, branchPath)))
+			except Queue.Full:
+					log.debug('Linux Arm queue full, skipping: ' + branchName)
 
-		try:
-			linuxX86Q.put_nowait((1, 1, Build(branchName, branchPath)))
-		except Queue.Full:
-				log.debug('Linux X86 queue full, skipping: ' + branchName)
+		# perform quick check on queuesize to see if we must throttle
+		# NOTE: this is a poor mans throttling attempt, needs replacing
+		if(linuxX86Q.qsize() >= numBranches):
+				log.debug('Linux X86 queue contains current number of branches, skipping: ' + branchName)
+		else:
+			try:
+				# for now just using one priority. The second argument is used for sorting within a priority level
+				linuxX86Q.put_nowait((1, 1, Build(branchName, branchPath)))
+			except Queue.Full:
+					log.debug('Linux X86 queue full, skipping: ' + branchName)
 
 def addSubversionBuilds(svnRepository):
 	client = pysvn.Client()
@@ -112,9 +124,9 @@ def addSubversionBuilds(svnRepository):
 	# skip the first entry in the list as it is /branches (the directory in the repo)
 	for branch in branchList[1:]:
 		log.debug('Found branch: ' +  os.path.basename(branch[0].repos_path) + ' created at revision ' + str(branch[0].created_rev.number))
-		addToBuildQueues(os.path.basename(branch[0].repos_path), svnRepository + branch[0].repos_path)
+		addToBuildQueues(os.path.basename(branch[0].repos_path), svnRepository + branch[0].repos_path, len(branchList[1:]) + 1)
 
-	addToBuildQueues('trunk', svnRepository + '/trunk')
+	addToBuildQueues('trunk', svnRepository + '/trunk', len(branchList[1:]) + 1)
 
 def usage():
 	print ''
