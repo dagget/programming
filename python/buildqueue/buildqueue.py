@@ -6,14 +6,12 @@
 # automatically start a build.
 
 import os
-import getopt
 import sys
 import datetime
 import time
 import threading
 import pysvn
 import Queue
-import random
 import logging
 import errno
 import subprocess
@@ -91,7 +89,7 @@ class ThreadClass(threading.Thread):
 # callback needed for the subversion client
 def get_login( realm, username, may_save ):
 	"""callback implementation for Subversion login"""
-	return True, SubversionUser, SubversionPassword, True
+	return True, config.get('subversion', 'user'), config.get('subversion', 'password'), True
 
 def send_email( time, branch, to ):
 	msg = MIMEText("Hi,\n your build on branch %s has %s" % ( branch, time ) )
@@ -99,8 +97,8 @@ def send_email( time, branch, to ):
 	# me == the sender's email address
 	# you == the recipient's email address
 	msg['Subject'] = 'Build report : the build on %s has %s' % ( branch, time )
-	msg['From'] = ""
-	msg['To'] = to + maildomain
+	msg['From'] = "do-not-reply" + str(config.get('general', 'maildomain'))
+	msg['To'] = to + str(config.get('general', 'maildomain'))
 
 	# Send the message via our own SMTP server, but don't include the
 	# envelope header.
@@ -131,9 +129,10 @@ def addToBuildQueues(branchName, branchPath, numBranches):
 			except Queue.Full:
 					log.debug('Linux X86 queue full, skipping: ' + branchName)
 
-def addSubversionBuilds(svnRepository):
+def addSubversionBuilds():
 	client = pysvn.Client()
 	client.callback_get_login = get_login
+	svnRepository = str(config.get('subversion', 'repository'))
 
 	# find branch names (returns a list of tuples)
 	branchList = client.list(svnRepository + '/branches', depth=pysvn.depth.immediates)
@@ -147,49 +146,50 @@ def addSubversionBuilds(svnRepository):
 	addToBuildQueues('trunk', svnRepository + '/trunk', len(branchList[1:]) + 1)
 	send_email("started", "trunk", branch[0].last_author)
 
-def usage():
-	print ''
-	print 'A threaded continuous buildserver'
-	print ''
-	print '-h, --help                 = print this help message'
-	print '-l, --log                  = set loglevel (debug, info, warning, error, critical)'
-	print '-r, --subversionrepository = use the given subversion repository'
-	print '-u, --subversionuser       = use the given subversion user'
-	print '-p, --subversionpassword   = use the given subversion password'
-	print ''
+def writeDefaultConfig():
+	try:
+		defaultConfig = open(os.path.expanduser('~/buildqueue.examplecfg'), 'w')
+		defaultConfig.write('[general]\n')
+		defaultConfig.write('# loglevel may be one of: debug, info, warning, error, critical\n')
+		defaultConfig.write('loglevel   : \n')
+		defaultConfig.write('# for example @example.com\n')
+		defaultConfig.write('maildomain : \n')
+		defaultConfig.write('[subversion]\n')
+		defaultConfig.write('repository : <repository url>\n')
+		defaultConfig.write('user       : <username>\n')
+		defaultConfig.write('password   : <password>\n')
+		defaultConfig.write('[git]\n')
+		defaultConfig.write('repository : <repository url>\n')
+		defaultConfig.close()
+		print 'Default configuration written as: ' + defaultConfig.name
+	except IOError, e:
+		print 'Failed to write default configuration: ' + str(e)
+
 	sys.exit()
 
 def main():
+	global config
+	config = ConfigParser.SafeConfigParser()
+	configfiles = config.read(['/etc/buildqueue', os.path.expanduser('~/.buildqueue')])
+	if (len(configfiles) == 0):
+		print 'No config files found'
+		writeDefaultConfig()
+		sys.exit()
+
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "hr:u:p:l:", ["help", "subversionrepository", "subversionuser", "subversionpassword", "log"])
-	except getopt.GetoptError, err:
-		# print help information and exit:
-		print str(err) # will print something like "option -a not recognized"
-		usage()
-
-	global SubversionUser
-	global SubversionPassword
-	SubversionRepository = None
-	loglevel      = 'debug'
-
-	for o, a in opts:
-		if o in ("-l", "--log"):
-			loglevel = a 
-		elif o in ("-h", "--help"):
-			usage()
-		elif o in ("-r", "--subversionrepository"):
-			SubversionRepository = a
-		elif o in ("-u", "--subversionuser"):
-			SubversionUser = a
-		elif o in ("-p", "--subversionpassword"):
-			SubversionPassword = a
-		else:
-			assert False, "unhandled option"
+		config.get('general', 'loglevel')
+		config.get('general', 'maildomain')
+		config.get('subversion', 'repository')
+		config.get('subversion', 'user')
+		config.get('subversion', 'password')
+	except ConfigParser.Error, e:
+		print str(e)
+		writeDefaultConfig()
 
 	# setup logging for both console and file
-	numeric_level = getattr(logging, loglevel.upper(), None)
+	numeric_level = getattr(logging, str(config.get('general', 'loglevel')).upper(), None)
 	if not isinstance(numeric_level, int):
-		    raise ValueError('Invalid log level: %s' % loglevel)
+		    raise ValueError('Invalid log level: %s' % config.get('general', 'loglevel'))
 
 	logging.basicConfig(format='%(levelname)s: %(message)s', level=numeric_level)
 	fh  = logging.FileHandler('buildbot.log')
@@ -198,9 +198,7 @@ def main():
 
 	global log
 	log = logging.getLogger()
-
 	log.addHandler(fh)
-
 	log.debug('starting main loop')
 
 	QueueLen    = 48 # just a stab at a sane queue length
@@ -226,19 +224,13 @@ def main():
 		linux_x86Q.join()
 		sys.exit()
 
-	log.debug('Using Subversion repository: ' + SubversionRepository)
-	log.debug('Using Subversion user      : ' + SubversionUser)
-	log.debug('Using Subversion password  : ' + SubversionPassword)
-
 	while True:
-		addSubversionBuilds(SubversionRepository)
+		addSubversionBuilds()
 		time.sleep(30)
 
 
 ##################################################################################
 if __name__ == '__main__':
-	if(len(sys.argv[1:]) < 3):
-		usage()
 	main()
 
 
