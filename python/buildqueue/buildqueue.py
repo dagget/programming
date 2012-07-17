@@ -76,7 +76,7 @@ class ThreadClass(threading.Thread):
 		# Send the message via our own SMTP server, but don't include the
 		# envelope header.
 		s = smtplib.SMTP('localhost')
-		s.sendmail("do-not-reply" + str(config.get('general', 'maildomain')), to, msg.as_string())
+		#s.sendmail("do-not-reply" + str(config.get('general', 'maildomain')), to, msg.as_string())
 		s.quit()
 
 	def run(self):
