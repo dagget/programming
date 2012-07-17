@@ -106,43 +106,28 @@ def get_login( realm, username, may_save ):
 	"""callback implementation for Subversion login"""
 	return True, config.get('subversion', 'user'), config.get('subversion', 'password'), True
 
-def send_email( time, branch, to ):
-	msg = MIMEText("Hi,\n your build on branch %s has %s" % ( branch, time ) )
-
-	# me == the sender's email address
-	# you == the recipient's email address
-	msg['Subject'] = 'Build report : the build on %s has %s' % ( branch, time )
-	msg['From'] = "do-not-reply" + str(config.get('general', 'maildomain'))
-	msg['To'] = to + str(config.get('general', 'maildomain'))
-
-	# Send the message via our own SMTP server, but don't include the
-	# envelope header.
-	s = smtplib.SMTP('localhost')
-	s.sendmail("", to, msg.as_string())
-	s.quit()
-
-def addToBuildQueues(branchName, branchPath, numBranches):
+def addToBuildQueues(build, numBranches):
 		# perform quick check on queuesize to see if we must throttle
 		# NOTE: this is a poor mans throttling attempt, needs replacing
 		if(linuxArmQ.qsize() >= numBranches):
-				log.debug('Linux Arm queue contains current number of branches, skipping: ' + branchName)
+				log.debug('Linux Arm queue contains current number of branches, skipping: ' + build.name)
 		else:
 			try:
 				# for now just using one priority. The second argument is used for sorting within a priority level
-				linuxArmQ.put_nowait((1, 1, Build(branchName, branchPath)))
+				linuxArmQ.put_nowait((1, 1, build))
 			except Queue.Full:
-					log.debug('Linux Arm queue full, skipping: ' + branchName)
+					log.debug('Linux Arm queue full, skipping: ' + build.name)
 
 		# perform quick check on queuesize to see if we must throttle
 		# NOTE: this is a poor mans throttling attempt, needs replacing
 		if(linuxX86Q.qsize() >= numBranches):
-				log.debug('Linux X86 queue contains current number of branches, skipping: ' + branchName)
+				log.debug('Linux X86 queue contains current number of branches, skipping: ' + build.name)
 		else:
 			try:
 				# for now just using one priority. The second argument is used for sorting within a priority level
-				linuxX86Q.put_nowait((1, 1, Build(branchName, branchPath)))
+				linuxX86Q.put_nowait((1, 1, build))
 			except Queue.Full:
-					log.debug('Linux X86 queue full, skipping: ' + branchName)
+					log.debug('Linux X86 queue full, skipping: ' + build.name)
 
 def addSubversionBuilds():
 	client = pysvn.Client()
@@ -155,11 +140,9 @@ def addSubversionBuilds():
 	# skip the first entry in the list as it is /branches (the directory in the repo)
 	for branch in branchList[1:]:
 		log.debug('Found branch: ' +  os.path.basename(branch[0].repos_path) + ' created at revision ' + str(branch[0].created_rev.number))
-		addToBuildQueues(os.path.basename(branch[0].repos_path), svnRepository + branch[0].repos_path, len(branchList[1:]) + 1)
-		send_email("started", branch[0].repos_path, branch[0].last_author)
+		addToBuildQueues(Build(os.path.basename(branch[0].repos_path), svnRepository + branch[0].repos_path, branch[0].last_author), len(branchList[1:]) + 1)
 
-	addToBuildQueues('trunk', svnRepository + '/trunk', len(branchList[1:]) + 1)
-	send_email("started", "trunk", branch[0].last_author)
+	addToBuildQueues(Build('trunk', svnRepository + '/trunk', branch[0].last_author), len(branchList[1:]) + 1)
 
 def writeDefaultConfig():
 	try:
