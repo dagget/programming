@@ -190,7 +190,7 @@ def main():
 		    raise ValueError('Invalid log level: %s' % config.get('general', 'loglevel'))
 
 	logging.basicConfig(format='%(levelname)s: %(message)s', level=numeric_level)
-	fh  = logging.FileHandler('buildbot.log')
+	fh  = logging.RotatingFileHandler('buildbot.log', maxBytes=1048576, backupCount=5)
 	fh_fmt = logging.Formatter("%(levelname)s\t: %(message)s")
 	fh.setFormatter(fh_fmt)
 
