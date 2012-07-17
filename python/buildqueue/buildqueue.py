@@ -17,10 +17,12 @@ import random
 import logging
 import errno
 import subprocess
+import smtplib
+from email.mime.text import MIMEText
+import ConfigParser
 
 
 ## TODO
-# -- add build/skip mail
 # -- add git repo support
 # -- replace while true with decent condition
 # -- let threads stop gracefully
@@ -91,6 +93,21 @@ def get_login( realm, username, may_save ):
 	"""callback implementation for Subversion login"""
 	return True, SubversionUser, SubversionPassword, True
 
+def send_email( time, branch, to ):
+	msg = MIMEText("Hi,\n your build on branch %s has %s" % ( branch, time ) )
+
+	# me == the sender's email address
+	# you == the recipient's email address
+	msg['Subject'] = 'Build report : the build on %s has %s' % ( branch, time )
+	msg['From'] = ""
+	msg['To'] = to + maildomain
+
+	# Send the message via our own SMTP server, but don't include the
+	# envelope header.
+	s = smtplib.SMTP('localhost')
+	s.sendmail("", to, msg.as_string())
+	s.quit()
+
 def addToBuildQueues(branchName, branchPath, numBranches):
 		# perform quick check on queuesize to see if we must throttle
 		# NOTE: this is a poor mans throttling attempt, needs replacing
@@ -125,8 +142,10 @@ def addSubversionBuilds(svnRepository):
 	for branch in branchList[1:]:
 		log.debug('Found branch: ' +  os.path.basename(branch[0].repos_path) + ' created at revision ' + str(branch[0].created_rev.number))
 		addToBuildQueues(os.path.basename(branch[0].repos_path), svnRepository + branch[0].repos_path, len(branchList[1:]) + 1)
+		send_email("started", branch[0].repos_path, branch[0].last_author)
 
 	addToBuildQueues('trunk', svnRepository + '/trunk', len(branchList[1:]) + 1)
+	send_email("started", "trunk", branch[0].last_author)
 
 def usage():
 	print ''
@@ -221,3 +240,5 @@ if __name__ == '__main__':
 	if(len(sys.argv[1:]) < 3):
 		usage()
 	main()
+
+
