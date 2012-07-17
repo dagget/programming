@@ -25,10 +25,33 @@ import ConfigParser
 # -- replace while true with decent condition
 # -- let threads stop gracefully
 # -- add windows build
-# -- replace queue throttling with better alternative (wrap queue class and add 
-#    internal check if item is on queue for instance)
 
 ##################################################################################
+class BuildQueue(Queue.PriorityQueue):
+	def __init__(self, queuelength):
+		Queue.PriorityQueue.__init__(self, queuelength)
+		self.builds = {} # maintain a hash of branches added to sift out doubles
+		self.lock = threading.Lock()
+	
+	def enqueue(self, item):
+		# if a build is in the queue then don't add it again
+		self.lock.acquire()
+		try:
+			if(self.builds[item[2].name]):
+				print 'Branch ' + item[2].name + ' is already in the queue - skipping'
+		except KeyError:
+			# else put it in the buildqueue
+			self.put_nowait(item)
+			self.builds[item[2].name] = True
+		self.lock.release()
+
+	def dequeue(self):
+		item = self.get()
+		self.lock.acquire()
+		del self.builds[item[2].name]
+		self.lock.release()
+		return item
+
 class Build:
 	def __init__(self, name, path, lastauthor):
 		self.name = name
@@ -69,7 +92,7 @@ class ThreadClass(threading.Thread):
 
 		while True:
 			# returned value consists of: priority, sortorder, build object
-			item = self.queue.get()
+			item = self.queue.dequeue()
 			buildscript = exportpath + '/' + item[2].name + '-build2.cmake'
 			
 			# export the buildscript that will perform the actual build of the branch
@@ -106,26 +129,16 @@ def get_login( realm, username, may_save ):
 	"""callback implementation for Subversion login"""
 	return True, config.get('subversion', 'user'), config.get('subversion', 'password'), True
 
-def addToBuildQueues(build, numBranches):
-		# perform quick check on queuesize to see if we must throttle
-		# NOTE: this is a poor mans throttling attempt, needs replacing
-		if(linuxArmQ.qsize() >= numBranches):
-				log.debug('Linux Arm queue contains current number of branches, skipping: ' + build.name)
-		else:
+def addToBuildQueues(build):
 			try:
 				# for now just using one priority. The second argument is used for sorting within a priority level
-				linuxArmQ.put_nowait((1, 1, build))
+				linuxArmQ.enqueue((1, 1, build))
 			except Queue.Full:
 					log.debug('Linux Arm queue full, skipping: ' + build.name)
 
-		# perform quick check on queuesize to see if we must throttle
-		# NOTE: this is a poor mans throttling attempt, needs replacing
-		if(linuxX86Q.qsize() >= numBranches):
-				log.debug('Linux X86 queue contains current number of branches, skipping: ' + build.name)
-		else:
 			try:
 				# for now just using one priority. The second argument is used for sorting within a priority level
-				linuxX86Q.put_nowait((1, 1, build))
+				linuxX86Q.enqueue((1, 1, build))
 			except Queue.Full:
 					log.debug('Linux X86 queue full, skipping: ' + build.name)
 
@@ -140,9 +153,9 @@ def addSubversionBuilds():
 	# skip the first entry in the list as it is /branches (the directory in the repo)
 	for branch in branchList[1:]:
 		log.debug('Found branch: ' +  os.path.basename(branch[0].repos_path) + ' created at revision ' + str(branch[0].created_rev.number))
-		addToBuildQueues(Build(os.path.basename(branch[0].repos_path), svnRepository + branch[0].repos_path, branch[0].last_author), len(branchList[1:]) + 1)
+		addToBuildQueues(Build(os.path.basename(branch[0].repos_path), svnRepository + branch[0].repos_path, branch[0].last_author))
 
-	addToBuildQueues(Build('trunk', svnRepository + '/trunk', branch[0].last_author), len(branchList[1:]) + 1)
+	addToBuildQueues(Build('trunk', svnRepository + '/trunk', branch[0].last_author))
 
 def writeDefaultConfig():
 	try:
@@ -203,8 +216,8 @@ def main():
 	global linuxArmQ
 	global linuxX86Q
 
-	linuxArmQ   = Queue.PriorityQueue(QueueLen)
-	linuxX86Q   = Queue.PriorityQueue(QueueLen)
+	linuxArmQ   = BuildQueue(QueueLen)
+	linuxX86Q   = BuildQueue(QueueLen)
 
 	# Start build queue threads
 	linux_armQ = ThreadClass(linuxArmQ, 'linux-arm')
