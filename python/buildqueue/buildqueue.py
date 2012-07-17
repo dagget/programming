@@ -18,6 +18,7 @@ import subprocess
 import smtplib
 from email.mime.text import MIMEText
 import ConfigParser
+from logging.handlers import RotatingFileHandler
 
 
 ## TODO
@@ -203,7 +204,7 @@ def main():
 		    raise ValueError('Invalid log level: %s' % config.get('general', 'loglevel'))
 
 	logging.basicConfig(format='%(levelname)s: %(message)s', level=numeric_level)
-	fh  = logging.RotatingFileHandler('buildbot.log', maxBytes=1048576, backupCount=5)
+	fh  = logging.handlers.RotatingFileHandler('buildbot.log', maxBytes=1048576, backupCount=5)
 	fh_fmt = logging.Formatter("%(levelname)s\t: %(message)s")
 	fh.setFormatter(fh_fmt)
 
