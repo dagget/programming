@@ -30,9 +30,10 @@ import ConfigParser
 
 ##################################################################################
 class Build:
-	def __init__(self, name, path):
+	def __init__(self, name, path, lastauthor):
 		self.name = name
 		self.path = path
+		self.lastauthor = lastauthor
 
 class ThreadClass(threading.Thread):
 	def __init__(self, queue, name):
@@ -40,6 +41,19 @@ class ThreadClass(threading.Thread):
 		self.queue = queue
 		self.name = name
 		self.client = pysvn.Client()
+
+	def send_email(self, time, branch, to ):
+		msg = MIMEText("Hi,\n your build on branch %s has %s" % ( branch, time ) )
+
+		msg['Subject'] = 'Build report : the build on %s has %s' % ( branch, time )
+		msg['From'] = "do-not-reply" + str(config.get('general', 'maildomain'))
+		msg['To'] = to + str(config.get('general', 'maildomain'))
+
+		# Send the message via our own SMTP server, but don't include the
+		# envelope header.
+		s = smtplib.SMTP('localhost')
+		s.sendmail("do-not-reply" + str(config.get('general', 'maildomain')), to, msg.as_string())
+		s.quit()
 
 	def run(self):
 		self.client.callback_get_login = get_login
@@ -75,6 +89,7 @@ class ThreadClass(threading.Thread):
 					continue	
 				else:
 					log.debug(self.name + " " + item[2].name + " returned: " + str(retcode))
+					self.send_email("finished", item[2].name, item[2].lastauthor)
 					self.queue.task_done()
 					continue
 			except OSError, e:
@@ -228,9 +243,6 @@ def main():
 		addSubversionBuilds()
 		time.sleep(30)
 
-
 ##################################################################################
 if __name__ == '__main__':
 	main()
-
-
