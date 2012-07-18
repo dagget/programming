@@ -15,8 +15,6 @@ import Queue
 import logging
 import errno
 import subprocess
-import smtplib
-from email.mime.text import MIMEText
 import ConfigParser
 from logging.handlers import RotatingFileHandler
 
@@ -67,19 +65,6 @@ class ThreadClass(threading.Thread):
 		self.name = name
 		self.client = pysvn.Client()
 
-	def send_email(self, time, branch, to ):
-		msg = MIMEText("Hi,\n your build on branch %s has %s" % ( branch, time ) )
-
-		msg['Subject'] = 'Build report : the build on %s has %s' % ( branch, time )
-		msg['From'] = "do-not-reply" + str(config.get('general', 'maildomain'))
-		msg['To'] = to + str(config.get('general', 'maildomain'))
-
-		# Send the message via our own SMTP server, but don't include the
-		# envelope header.
-		s = smtplib.SMTP('localhost')
-		#s.sendmail("do-not-reply" + str(config.get('general', 'maildomain')), to, msg.as_string())
-		s.quit()
-
 	def run(self):
 		self.client.callback_get_login = get_login
 		now = datetime.datetime.now()
@@ -114,7 +99,6 @@ class ThreadClass(threading.Thread):
 					continue	
 				else:
 					log.debug(self.name + " " + item[2].name + " returned: " + str(retcode))
-					self.send_email("finished", item[2].name, item[2].lastauthor)
 					self.queue.task_done()
 					continue
 			except OSError, e:
