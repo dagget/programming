@@ -25,14 +25,15 @@ from logging.handlers import RotatingFileHandler
 # -- add git repo support
 # -- replace while true with decent condition
 # -- let threads stop gracefully
-# -- add windows build
 
 ##################################################################################
 class BuildQueue(Queue.PriorityQueue):
-	def __init__(self, queuelength):
+	''' Wrapper class for Queue to filter out double entries '''
+	def __init__(self, queuelength, platform):
 		Queue.PriorityQueue.__init__(self, queuelength)
 		self.builds = {} # maintain a hash of branches added to sift out doubles
 		self.lock = threading.Lock()
+		self.platform = platform
 	
 	def enqueue(self, item):
 		# if a build is in the queue then don't add it again
@@ -131,17 +132,12 @@ def get_login( realm, username, may_save ):
 	return True, config.get('subversion', 'user'), config.get('subversion', 'password'), True
 
 def addToBuildQueues(build):
+	for queue in BuildQueues[:]:
 			try:
 				# for now just using one priority. The second argument is used for sorting within a priority level
-				linuxArmQ.enqueue((1, 1, build))
+				queue.enqueue((1, 1, build))
 			except Queue.Full:
-					log.debug('Linux Arm queue full, skipping: ' + build.name)
-
-			try:
-				# for now just using one priority. The second argument is used for sorting within a priority level
-				linuxX86Q.enqueue((1, 1, build))
-			except Queue.Full:
-					log.debug('Linux X86 queue full, skipping: ' + build.name)
+					log.debug(queue.name + ' queue full, skipping: ' + build.name)
 
 def addSubversionBuilds():
 	client = pysvn.Client()
@@ -214,27 +210,29 @@ def main():
 	log.debug('starting main loop')
 
 	QueueLen    = 48 # just a stab at a sane queue length
-	global linuxArmQ
-	global linuxX86Q
+	global BuildQueues
+	BuildQueues = []
 
-	linuxArmQ   = BuildQueue(QueueLen)
-	linuxX86Q   = BuildQueue(QueueLen)
+	if sys.platform[:5] == 'linux':
+		BuildQueues.append(BuildQueue(QueueLen, 'linux-arm'))
+		BuildQueues.append(BuildQueue(QueueLen, 'linux-x86'))
+	elif sys.platform[:3] == 'win':
+		BuildQueues.append(BuildQueue(QueueLen, 'windows-x86'))
+	else:
+		log.debug("Unknown platform, don't know which buildqueue to start")
+		sys.exit()
 
 	# Start build queue threads
-	linux_armQ = ThreadClass(linuxArmQ, 'linux-arm')
-	linux_x86Q = ThreadClass(linuxX86Q, 'linux-x86')
+	for queue in BuildQueues[:]:
+		thread = ThreadClass(queue, queue.platform)
+		# let threads be killed when main is killed
+		thread.setDaemon(True)
 
-	# let threads be killed when main is killed
-	linux_armQ.setDaemon(True)
-	linux_x86Q.setDaemon(True)
-
-	try:
-		linux_armQ.start()
-		linux_x86Q.start()
-	except (KeyboardInterrupt, SystemExit):
-		linux_armQ.join()
-		linux_x86Q.join()
-		sys.exit()
+		try:
+			thread.start()
+		except (KeyboardInterrupt, SystemExit):
+			thread.join()
+			sys.exit()
 
 	while True:
 		addSubversionBuilds()
