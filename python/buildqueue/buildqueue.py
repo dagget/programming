@@ -22,7 +22,6 @@ from logging.handlers import RotatingFileHandler
 ## TODO
 # -- add git repo support
 # -- replace while true with decent condition
-# -- let threads stop gracefully
 
 ##################################################################################
 class BuildQueue(Queue.PriorityQueue):
@@ -64,6 +63,10 @@ class ThreadClass(threading.Thread):
 		self.queue = queue
 		self.name = name
 		self.client = pysvn.Client()
+		self.stop_event = threading.Event()
+
+	def stop(self):
+		self.stop_event.set()
 
 	def run(self):
 		self.client.callback_get_login = get_login
@@ -77,7 +80,7 @@ class ThreadClass(threading.Thread):
 				pass
 			else: raise
 
-		while True:
+		while not self.stop_event.isSet():
 			# returned value consists of: priority, sortorder, build object
 			item = self.queue.dequeue()
 			buildscript = exportpath + '/' + item[2].name + '-build2.cmake'
@@ -215,6 +218,7 @@ def main():
 		try:
 			thread.start()
 		except (KeyboardInterrupt, SystemExit):
+			thread.stop()
 			thread.join()
 			sys.exit()
 
