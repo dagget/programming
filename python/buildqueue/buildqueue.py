@@ -86,7 +86,7 @@ class ThreadClass(threading.Thread):
 			buildscript = exportpath + '/' + item[2].name + '-build-stage2.cmake'
 			# export the buildscript that will perform the actual build of the branch
 			try:
-				self.client.export(item[2].path + str(config.get('general','buildscript')), buildscript, recurse=False)
+				self.client.export(item[2].path + '/' + str(config.get('general','buildscript')), buildscript, recurse=False)
 			except pysvn.ClientError, e:
 				log.debug("Failed to export the buildscript for " + item[2].name + ':' + str(e))
 				self.queue.task_done()
