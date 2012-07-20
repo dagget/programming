@@ -7,7 +7,7 @@
 
 import os
 import sys
-import datetime
+from datetime import datetime,date
 import time
 import threading
 import pysvn
@@ -52,10 +52,11 @@ class BuildQueue(Queue.PriorityQueue):
 		return item
 
 class Build:
-	def __init__(self, name, path, lastauthor):
+	def __init__(self, name, path, lastauthor, buildtype = 'experimental'):
 		self.name = name
 		self.path = path
 		self.lastauthor = lastauthor
+		self.buildtype = buildtype
 
 class ThreadClass(threading.Thread):
 	def __init__(self, queue, name):
@@ -94,7 +95,7 @@ class ThreadClass(threading.Thread):
 
 			# run the buildscript
 			try:
-				retcode = subprocess.call(["ctest --script " + buildscript + ",platform=" + self.name + "\;branch=" + item[2].name + "\;repo=" + item[2].path.replace('svn://','') + "\;repotype=svn" + "\;server"], shell=True)
+				retcode = subprocess.call(["ctest --script " + buildscript + ",platform=" + self.name + "\;branch=" + item[2].name + "\;repo=" + item[2].path.replace('svn://','') + "\;repotype=svn" + "\;server" + "\;" + item[2].buildtype], shell=True)
 				if retcode < 0:
 					log.debug(self.name + " " + item[2].name + " was terminated by signal: " + str(-retcode))
 					self.queue.task_done()
@@ -139,6 +140,9 @@ def addSubversionBuilds():
 		addToBuildQueues(Build(os.path.basename(branch[0].repos_path), svnRepository + branch[0].repos_path, branch[0].last_author))
 
 	addToBuildQueues(Build('trunk', svnRepository + '/trunk', branch[0].last_author))
+
+def addSubversionNightly():
+	addToBuildQueues(Build('trunk', svnRepository + '/trunk', branch[0].last_author, 'nightly'))
 
 def writeDefaultConfig():
 	try:
@@ -223,7 +227,16 @@ def main():
 			thread.join()
 			sys.exit()
 
+	lastNightlyTime = datetime(date.today().year, date.today().month, date.today().day, 1, 0, 0)
+
 	while True:
+		currentTime = datetime.now()
+		delta = currentTime - lastNightlyTime
+
+		if(delta.seconds > (24 * 3600)):
+			lastNightlyTime = datetime(date.today().year, date.today().month, date.today().day, 1, 0, 0)
+			addSubversionNightly()
+
 		addSubversionBuilds()
 		time.sleep(30)
 
