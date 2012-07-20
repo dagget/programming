@@ -71,8 +71,7 @@ class ThreadClass(threading.Thread):
 
 	def run(self):
 		self.client.callback_get_login = get_login
-		now = datetime.datetime.now()
-		log.debug("%s started at time: %s" % (self.name, now))
+		log.debug("%s started at time: %s" % (self.name, datetime.now()))
 		exportpath = os.environ['HOME'] + '/' + self.name + '/buildscripts'
 		try:
 			os.makedirs(exportpath)
