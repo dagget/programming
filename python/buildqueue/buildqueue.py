@@ -83,11 +83,10 @@ class ThreadClass(threading.Thread):
 		while not self.stop_event.isSet():
 			# returned value consists of: priority, sortorder, build object
 			item = self.queue.dequeue()
-			buildscript = exportpath + '/' + item[2].name + '-build2.cmake'
-			
+			buildscript = exportpath + '/' + item[2].name + '-build-stage2.cmake'
 			# export the buildscript that will perform the actual build of the branch
 			try:
-				self.client.export(item[2].path + '/3-Code/31-Build-Tools/Scripts/build2.cmake', buildscript, recurse=False)
+				self.client.export(item[2].path + str(config.get('general','buildscript')), buildscript, recurse=False)
 			except pysvn.ClientError, e:
 				log.debug("Failed to export the buildscript for " + item[2].name + ':' + str(e))
 				self.queue.task_done()
@@ -95,7 +94,7 @@ class ThreadClass(threading.Thread):
 
 			# run the buildscript
 			try:
-				retcode = subprocess.call(["ctest --script " + buildscript + ",platform=" + self.name + "\;branch=" + item[2].name + "\;repo=" + item[2].path.replace('svn://','') + "\;repotype=svn" + "\;configonly"], shell=True)
+				retcode = subprocess.call(["ctest --script " + buildscript + ",platform=" + self.name + "\;branch=" + item[2].name + "\;repo=" + item[2].path.replace('svn://','') + "\;repotype=svn" + "\;server"], shell=True)
 				if retcode < 0:
 					log.debug(self.name + " " + item[2].name + " was terminated by signal: " + str(-retcode))
 					self.queue.task_done()
@@ -145,6 +144,7 @@ def writeDefaultConfig():
 	try:
 		defaultConfig = open(os.path.expanduser('~/buildqueue.examplecfg'), 'w')
 		defaultConfig.write('[general]\n')
+		defaultConfig.write('buildscript : \n')
 		defaultConfig.write('# loglevel may be one of: debug, info, warning, error, critical\n')
 		defaultConfig.write('loglevel   : \n')
 		defaultConfig.write('# for example @example.com\n')
@@ -172,6 +172,7 @@ def main():
 		sys.exit()
 
 	try:
+		config.get('general', 'buildscript')
 		config.get('general', 'loglevel')
 		config.get('general', 'maildomain')
 		config.get('subversion', 'repository')
