@@ -94,8 +94,8 @@ class ThreadClass(threading.Thread):
 
 			# run the buildscript
 			try:
-				cmdline = "ctest --script " + buildscript + ",platform=" + self.name + "\;branch=" + item[2].name + "\;repo=" + item[2].path.replace('svn://','') + "\;repotype=svn" + "\;server" + "\;" + item[2].buildtype
-				#log.debug("cmdline: " + cmdline)
+				cmdline = "ctest --script \"" + buildscript + ",platform=" + self.name + ";branch=" + item[2].name + ";repo=" + item[2].path.replace('svn://','') + ";repotype=svn" + ";server" + ";" + item[2].buildtype + "\""
+				# log.debug("cmdline: " + cmdline)
 				retcode = subprocess.call([cmdline])
 				if retcode < 0:
 					log.debug(self.name + " " + item[2].name + " was terminated by signal: " + str(-retcode))
