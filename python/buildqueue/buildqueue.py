@@ -37,7 +37,7 @@ class BuildQueue(Queue.PriorityQueue):
 		self.lock.acquire()
 		try:
 			if(self.builds[item[2].name]):
-				print 'Branch ' + item[2].name + ' is already in the queue - skipping'
+				log.debug('Branch ' + item[2].name + ' is already in the queue - skipping')
 		except KeyError:
 			# else put it in the buildqueue
 			self.put_nowait(item)
@@ -94,7 +94,9 @@ class ThreadClass(threading.Thread):
 
 			# run the buildscript
 			try:
-				retcode = subprocess.call(["ctest --script " + buildscript + ",platform=" + self.name + "\;branch=" + item[2].name + "\;repo=" + item[2].path.replace('svn://','') + "\;repotype=svn" + "\;server" + "\;" + item[2].buildtype], shell=True)
+				cmdline = "ctest --script " + buildscript + ",platform=" + self.name + "\;branch=" + item[2].name + "\;repo=" + item[2].path.replace('svn://','') + "\;repotype=svn" + "\;server" + "\;" + item[2].buildtype
+				#log.debug("cmdline: " + cmdline)
+				retcode = subprocess.call([cmdline])
 				if retcode < 0:
 					log.debug(self.name + " " + item[2].name + " was terminated by signal: " + str(-retcode))
 					self.queue.task_done()
@@ -104,7 +106,7 @@ class ThreadClass(threading.Thread):
 					self.queue.task_done()
 					continue
 			except OSError, e:
-				log.debug(self.name + " " + item[2].name + " execution failed: " + e)
+				log.debug(self.name + " " + item[2].name + " execution failed: " + str(e))
 				self.queue.task_done()
 				continue	
 
