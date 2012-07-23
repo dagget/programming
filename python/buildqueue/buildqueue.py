@@ -37,7 +37,7 @@ class BuildQueue(Queue.PriorityQueue):
 		self.lock.acquire()
 		try:
 			if(self.builds[item[2].name]):
-				log.debug('Branch ' + item[2].name + ' is already in the queue - skipping')
+				log.debug('Branch ' + item[2].name + ' is already in the ' + self.platform + ' queue - skipping')
 		except KeyError:
 			# else put it in the buildqueue
 			self.put_nowait(item)
@@ -97,7 +97,7 @@ class ThreadClass(threading.Thread):
 				command = "ctest"
 				argument1 = "--script"
 				argument2 = buildscript + ",platform=" + self.name + ";branch=" + item[2].name + ";repo=" + item[2].path.replace('svn://','') + ";repotype=svn" + ";server" + ";" + item[2].buildtype
-				log.debug("cmdline: " + command + argument1 + argument2)
+				#log.debug("cmdline: " + command + ' ' + argument1 + argument2)
 				retcode = subprocess.call([command, argument1, argument2])
 				#p = subprocess.Popen( [command, argument1, argument2], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 				#out, err = p.communicate()
