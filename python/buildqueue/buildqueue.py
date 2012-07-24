@@ -22,7 +22,6 @@ from logging.handlers import RotatingFileHandler
 ## TODO
 # -- add git repo support
 # -- replace while true with decent condition
-# -- fix nightly
 # -- add notification mechanism
 
 ##################################################################################
@@ -242,7 +241,7 @@ def main():
 		currentTime = datetime.now()
 		delta = currentTime - lastNightlyTime
 
-		if(delta.seconds > (24 * 3600)):
+		if(delta.total_seconds() > (24 * 3600)):
 			lastNightlyTime = datetime(date.today().year, date.today().month, date.today().day, 1, 0, 0)
 			addSubversionNightly()
 
