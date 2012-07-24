@@ -22,6 +22,8 @@ from logging.handlers import RotatingFileHandler
 ## TODO
 # -- add git repo support
 # -- replace while true with decent condition
+# -- fix nightly
+# -- add notification mechanism
 
 ##################################################################################
 class BuildQueue(Queue.PriorityQueue):
@@ -72,7 +74,8 @@ class ThreadClass(threading.Thread):
 	def run(self):
 		self.client.callback_get_login = get_login
 		log.debug("%s started at time: %s" % (self.name, datetime.now()))
-		exportpath = os.environ['HOME'] + '/' + self.name + '/buildscripts'
+		exportpath = os.path.normpath(os.path.expandvars(str(config.get('general','pivotdirectory')) + '/' + self.name + '/buildscripts'))
+
 		try:
 			os.makedirs(exportpath)
 		except OSError, e:
@@ -99,11 +102,6 @@ class ThreadClass(threading.Thread):
 				argument2 = buildscript + ",platform=" + self.name + ";branch=" + item[2].name + ";repo=" + item[2].path.replace('svn://','') + ";repotype=svn" + ";server" + ";" + item[2].buildtype
 				#log.debug("cmdline: " + command + ' ' + argument1 + argument2)
 				retcode = subprocess.call([command, argument1, argument2])
-				#p = subprocess.Popen( [command, argument1, argument2], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-				#out, err = p.communicate()
-				#print out
-				#print err
-				#retcode = 0
 				
 				if retcode < 0:
 					log.debug(self.name + " " + item[2].name + " was terminated by signal: " + str(-retcode))
@@ -157,6 +155,7 @@ def writeDefaultConfig():
 	try:
 		defaultConfig = open(os.path.expanduser('~/buildqueue.examplecfg'), 'w')
 		defaultConfig.write('[general]\n')
+		defaultConfig.write('pivotdirectory : \n')
 		defaultConfig.write('buildscript : \n')
 		defaultConfig.write('# loglevel may be one of: debug, info, warning, error, critical\n')
 		defaultConfig.write('loglevel   : \n')
@@ -188,6 +187,7 @@ def main():
 		config.get('general', 'buildscript')
 		config.get('general', 'loglevel')
 		config.get('general', 'maildomain')
+		config.get('general', 'pivotdirectory')
 		config.get('subversion', 'repository')
 		config.get('subversion', 'user')
 		config.get('subversion', 'password')
