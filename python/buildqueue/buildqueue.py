@@ -86,6 +86,8 @@ class ThreadClass(threading.Thread):
 			# returned value consists of: priority, sortorder, build object
 			item = self.queue.dequeue()
 			buildscript = exportpath + '/' + item[2].name + '-build-stage2.cmake'
+			newbuild = False
+
 			# export the buildscript that will perform the actual build of the branch
 			try:
 				self.client.export(item[2].path + '/' + str(config.get('general','buildscript')), buildscript, force=True, recurse=False)
@@ -94,29 +96,40 @@ class ThreadClass(threading.Thread):
 				self.queue.task_done()
 				continue
 
-			# run the buildscript
-			try:
-				command = "ctest"
-				argument1 = "--script"
-				argument2 = buildscript + ",platform=" + self.name + ";branch=" + item[2].name + ";repo=" + item[2].path.replace('svn://','') + ";repotype=svn" + ";server" + ";" + item[2].buildtype
-				#log.debug("cmdline: " + command + ' ' + argument1 + argument2)
-				retcode = subprocess.call([command, argument1, argument2])
-				
-				if retcode < 0:
-					log.debug(self.name + " " + item[2].name + " was terminated by signal: " + str(-retcode))
+			# check if this is a 'new' buildscript
+			for line in open(buildscript):
+				if "SERVERBUILD" in line:
+					newbuild = True
+					log.debug(self.name + " " + item[2].name + " detected an new style buildscript")
+					break
+
+			if(newbuild):
+				# run the buildscript
+				try:
+					command = "ctest"
+					argument1 = "--script"
+					argument2 = buildscript + ",platform=" + self.name + ";branch=" + item[2].name + ";repo=" + item[2].path.replace('svn://','') + ";repotype=svn" + ";server" + ";" + item[2].buildtype
+					#log.debug("cmdline: " + command + ' ' + argument1 + argument2)
+					retcode = subprocess.call([command, argument1, argument2])
+					
+					if retcode < 0:
+						log.debug(self.name + " " + item[2].name + " was terminated by signal: " + str(-retcode))
+						self.queue.task_done()
+						continue	
+					else:
+						log.debug(self.name + " " + item[2].name + " returned: " + str(retcode))
+						self.queue.task_done()
+						continue
+				except OSError, e:
+					log.debug(self.name + " " + item[2].name + " execution failed: " + str(e))
 					self.queue.task_done()
 					continue	
-				else:
-					log.debug(self.name + " " + item[2].name + " returned: " + str(retcode))
-					self.queue.task_done()
-					continue
-			except OSError, e:
-				log.debug(self.name + " " + item[2].name + " execution failed: " + str(e))
-				self.queue.task_done()
-				continue	
 
-			log.debug(self.name + " " + item[2].name + ': done build ' + item[2].name)
-			self.queue.task_done()
+				log.debug(self.name + " " + item[2].name + ': done build ' + item[2].name)
+				self.queue.task_done()
+			else:
+				log.debug(self.name + " " + item[2].name + " detected an old style buildscript - skipping")
+				self.queue.task_done()
 
 ##################################################################################
 # callback needed for the subversion client
