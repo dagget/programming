@@ -161,6 +161,7 @@ def addSubversionBuilds():
 	addToBuildQueues(Build('trunk', svnRepository + '/trunk', branch[0].last_author))
 
 def addSubversionNightly():
+	svnRepository = str(config.get('subversion', 'repository'))
 	addToBuildQueues(Build('trunk', svnRepository + '/trunk', branch[0].last_author, 'nightly'))
 
 def writeDefaultConfig():
