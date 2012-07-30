@@ -16,7 +16,7 @@ import logging
 import errno
 import subprocess
 import ConfigParser
-from logging.handlers import RotatingFileHandler
+import logging.handlers
 
 
 ## TODO
@@ -213,14 +213,21 @@ def main():
 	if not isinstance(numeric_level, int):
 		    raise ValueError('Invalid log level: %s' % config.get('general', 'loglevel'))
 
-	logging.basicConfig(format='%(levelname)s: %(message)s', level=numeric_level)
-	fh  = logging.handlers.RotatingFileHandler('buildbot.log', maxBytes=1048576, backupCount=5)
-	fh_fmt = logging.Formatter("%(levelname)s\t: %(message)s")
-	fh.setFormatter(fh_fmt)
+	messageFormat = '%(asctime)s %(levelname)-8s %(message)s'
+	dateTimeFormat = '%d-%m-%Y %H:%M:%S'
+
+	# setup logger with default console logger
+	logging.basicConfig(level=numeric_level,
+			format= messageFormat,
+			datefmt= dateTimeFormat)
 
 	global log
 	log = logging.getLogger()
+
+	fh = logging.handlers.RotatingFileHandler('buildbot.log', maxBytes=1048576, backupCount=5)
+	fh.setFormatter(logging.Formatter(messageFormat, dateTimeFormat))
 	log.addHandler(fh)
+
 	log.debug('starting main loop')
 
 	QueueLen    = 48 # just a stab at a sane queue length
