@@ -145,6 +145,14 @@ def addToBuildQueues(build):
 			except Queue.Full:
 					log.debug(queue.name + ' queue full, skipping: ' + build.name)
 
+def getSubversionLastLog(path):
+	client = pysvn.Client()
+	client.callback_get_login = get_login
+	svnRepository = str(config.get('subversion', 'repository'))
+	
+	logs = client.log(path, limit=1)
+	return {'author' : logs[0].author, 'revision' : logs[0].revision, 'date' : logs[0].date}
+
 def addSubversionBuilds():
 	client = pysvn.Client()
 	client.callback_get_login = get_login
@@ -156,13 +164,16 @@ def addSubversionBuilds():
 	# skip the first entry in the list as it is /branches (the directory in the repo)
 	for branch in branchList[1:]:
 		log.debug('Found branch: ' +  os.path.basename(branch[0].repos_path) + ' created at revision ' + str(branch[0].created_rev.number))
+		# Use the last_author from this tuple i.s.o. getting it from the getSubversionLastLog function
 		addToBuildQueues(Build(os.path.basename(branch[0].repos_path), svnRepository + branch[0].repos_path, branch[0].last_author))
 
-	addToBuildQueues(Build('trunk', svnRepository + '/trunk', branch[0].last_author))
+	lastLog = getSubversionLastLog(svnRepository + '/trunk')
+	addToBuildQueues(Build('trunk', svnRepository + '/trunk', lastLog['author']))
 
 def addSubversionNightly():
 	svnRepository = str(config.get('subversion', 'repository'))
-	addToBuildQueues(Build('trunk', svnRepository + '/trunk', branch[0].last_author, 'nightly'))
+	lastLog = getSubversionLastLog(svnRepository + '/trunk')
+	addToBuildQueues(Build('trunk', svnRepository + '/trunk', lastLog['author'], 'nightly'))
 
 def writeDefaultConfig():
 	try:
