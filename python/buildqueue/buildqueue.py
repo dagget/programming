@@ -92,7 +92,7 @@ class ThreadClass(threading.Thread):
 			try:
 				self.client.export(item[2].path + '/' + str(config.get('general','buildscript')), buildscript, force=True, recurse=False)
 			except pysvn.ClientError, e:
-				log.debug("Failed to export the buildscript for " + item[2].name + ':' + str(e))
+				log.warning("Failed to export the buildscript for " + item[2].name + ':' + str(e))
 				self.queue.task_done()
 				continue
 
@@ -113,22 +113,19 @@ class ThreadClass(threading.Thread):
 					retcode = subprocess.call([command, argument1, argument2])
 					
 					if retcode < 0:
-						log.debug(self.name + " " + item[2].name + " was terminated by signal: " + str(-retcode))
+						log.warning(self.name + " " + item[2].name + " was terminated by signal: " + str(-retcode))
 						self.queue.task_done()
 						continue	
 					else:
-						log.debug(self.name + " " + item[2].name + " returned: " + str(retcode))
+						log.info(self.name + " " + item[2].name + " returned: " + str(retcode))
 						self.queue.task_done()
 						continue
 				except OSError, e:
-					log.debug(self.name + " " + item[2].name + " execution failed: " + str(e))
+					log.warning(self.name + " " + item[2].name + " execution failed: " + str(e))
 					self.queue.task_done()
 					continue	
-
-				log.debug(self.name + " " + item[2].name + ': done build ' + item[2].name)
-				self.queue.task_done()
 			else:
-				log.debug(self.name + " " + item[2].name + " detected an old style buildscript - skipping")
+				log.info(self.name + " " + item[2].name + " detected an old style buildscript - skipping")
 				self.queue.task_done()
 
 ##################################################################################
@@ -143,7 +140,7 @@ def addToBuildQueues(build):
 				# for now just using one priority. The second argument is used for sorting within a priority level
 				queue.enqueue((1, 1, build))
 			except Queue.Full:
-					log.debug(queue.name + ' queue full, skipping: ' + build.name)
+					log.warning(queue.name + ' queue full, skipping: ' + build.name)
 
 def getSubversionLastLog(path):
 	client = pysvn.Client()
@@ -174,6 +171,7 @@ def addSubversionNightly():
 	svnRepository = str(config.get('subversion', 'repository'))
 	lastLog = getSubversionLastLog(svnRepository + '/trunk')
 	addToBuildQueues(Build('trunk', svnRepository + '/trunk', lastLog['author'], 'nightly'))
+	log.info('Inserted nightly')
 
 def writeDefaultConfig():
 	try:
@@ -251,7 +249,7 @@ def main():
 	elif sys.platform[:3] == 'win':
 		BuildQueues.append(BuildQueue(QueueLen, 'windows-x86'))
 	else:
-		log.debug("Unknown platform, don't know which buildqueue to start")
+		log.warning("Unknown platform, don't know which buildqueue to start")
 		sys.exit()
 
 	# Start build queue threads
