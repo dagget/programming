@@ -23,6 +23,10 @@ import logging.handlers
 # -- add git repo support
 # -- replace while true with decent condition
 # -- add notification mechanism
+# -- add init / upstart / systemd scripts
+# -- remove log output from terminal
+# -- inherit subversion build from build and move svn specific code to class
+# -- make svn build more robust (non resolving hostname kills this script)
 
 ##################################################################################
 class BuildQueue(Queue.PriorityQueue):
@@ -52,28 +56,32 @@ class BuildQueue(Queue.PriorityQueue):
 		self.lock.release()
 		return item
 
+	def getPlatform(self):
+		return self.platform
+
 class Build:
-	def __init__(self, name, path, lastauthor, buildtype = 'experimental'):
+	def __init__(self, name, path, lastauthor, platform = 'none', buildtype = 'experimental'):
 		self.name = name
 		self.path = path
 		self.lastauthor = lastauthor
 		self.buildtype = buildtype
+		self.newbuild = False
+		self.platform = platform
 
-class ThreadClass(threading.Thread):
-	def __init__(self, queue, name):
-		threading.Thread.__init__(self)
-		self.queue = queue
-		self.name = name
+	def setPlatform(self, platform):
+		self.platform = platform
+
+	def getName(self):
+		return self.name
+
+class SubversionBuild(Build):
+	def __init__(self, name, path, lastauthor, platform = 'none', buildtype = 'experimental'):
+		Build.__init__(self, name, path, lastauthor, platform, buildtype)
 		self.client = pysvn.Client()
-		self.stop_event = threading.Event()
-
-	def stop(self):
-		self.stop_event.set()
-
-	def run(self):
 		self.client.callback_get_login = get_login
-		log.debug("%s started at time: %s" % (self.name, datetime.now()))
-		exportpath = os.path.normpath(os.path.expandvars(str(config.get('general','pivotdirectory')) + '/' + self.name + '/buildscripts'))
+
+	def prebuild(self):
+		exportpath = os.path.normpath(os.path.expandvars(str(config.get('general','pivotdirectory')) + '/' + self.platform + '/buildscripts'))
 
 		try:
 			os.makedirs(exportpath)
@@ -82,50 +90,73 @@ class ThreadClass(threading.Thread):
 				pass
 			else: raise
 
+		buildscript = exportpath + '/' + self.name + '-build-stage2.cmake'
+
+		# export the buildscript that will perform the actual build of the branch
+		try:
+			self.client.export(self.path + '/' + str(config.get('general','buildscript')), buildscript, force=True, recurse=False)
+		except pysvn.ClientError, e:
+			log.warning("Failed to export the buildscript for " + self.name + ':' + str(e))
+			return False
+
+		# check if this is a 'new' buildscript
+		for line in open(buildscript):
+			if "SERVERBUILD" in line:
+				newbuild = True
+				log.debug(self.platform + " " + self.name + " detected an new style buildscript")
+				break
+
+		return True
+
+	def isNewBuild(self):
+		return self.newbuild
+
+	def build(self):
+		# run the buildscript
+		try:
+			command = "ctest"
+			argument1 = "--script"
+			argument2 = buildscript + ",platform=" + platform + ";branch=" + name + ";repo=" + path.replace('svn://','') + ";repotype=svn" + ";server" + ";" + buildtype
+			#log.debug("cmdline: " + command + ' ' + argument1 + argument2)
+			retcode = subprocess.call([command, argument1, argument2])
+
+			if retcode < 0:
+				log.warning(self.name + " " + name + " was terminated by signal: " + str(-retcode))
+				return
+			else:
+				log.info(self.name + " " + name + " returned: " + str(retcode))
+				return
+		except OSError, e:
+			log.warning(self.name + " " + name + " execution failed: " + str(e))
+			return
+
+class ThreadClass(threading.Thread):
+	def __init__(self, queue, name):
+		threading.Thread.__init__(self)
+		self.queue = queue
+		self.name = name
+		self.stop_event = threading.Event()
+
+	def stop(self):
+		self.stop_event.set()
+
+	def run(self):
+		log.debug("%s started at time: %s" % (self.name, datetime.now()))
+
 		while not self.stop_event.isSet():
 			# returned value consists of: priority, sortorder, build object
 			item = self.queue.dequeue()
-			buildscript = exportpath + '/' + item[2].name + '-build-stage2.cmake'
-			newbuild = False
 
-			# export the buildscript that will perform the actual build of the branch
-			try:
-				self.client.export(item[2].path + '/' + str(config.get('general','buildscript')), buildscript, force=True, recurse=False)
-			except pysvn.ClientError, e:
-				log.warning("Failed to export the buildscript for " + item[2].name + ':' + str(e))
+			if(not item[2].prebuild()):
 				self.queue.task_done()
 				continue
 
-			# check if this is a 'new' buildscript
-			for line in open(buildscript):
-				if "SERVERBUILD" in line:
-					newbuild = True
-					log.debug(self.name + " " + item[2].name + " detected an new style buildscript")
-					break
-
-			if(newbuild):
-				# run the buildscript
-				try:
-					command = "ctest"
-					argument1 = "--script"
-					argument2 = buildscript + ",platform=" + self.name + ";branch=" + item[2].name + ";repo=" + item[2].path.replace('svn://','') + ";repotype=svn" + ";server" + ";" + item[2].buildtype
-					#log.debug("cmdline: " + command + ' ' + argument1 + argument2)
-					retcode = subprocess.call([command, argument1, argument2])
-					
-					if retcode < 0:
-						log.warning(self.name + " " + item[2].name + " was terminated by signal: " + str(-retcode))
-						self.queue.task_done()
-						continue	
-					else:
-						log.info(self.name + " " + item[2].name + " returned: " + str(retcode))
-						self.queue.task_done()
-						continue
-				except OSError, e:
-					log.warning(self.name + " " + item[2].name + " execution failed: " + str(e))
-					self.queue.task_done()
-					continue	
+			if(item[2].isNewBuild()):
+				item.build()
+				self.queue.task_done()
+				continue
 			else:
-				log.info(self.name + " " + item[2].name + " detected an old style buildscript - skipping")
+				log.info(self.name + " " + item[2].getName() + " detected an old style buildscript - skipping")
 				self.queue.task_done()
 
 ##################################################################################
@@ -137,6 +168,7 @@ def get_login( realm, username, may_save ):
 def addToBuildQueues(build):
 	for queue in BuildQueues[:]:
 			try:
+				build.setPlatform(queue.getPlatform())
 				# for now just using one priority. The second argument is used for sorting within a priority level
 				queue.enqueue((1, 1, build))
 			except Queue.Full:
@@ -162,15 +194,15 @@ def addSubversionBuilds():
 	for branch in branchList[1:]:
 		log.debug('Found branch: ' +  os.path.basename(branch[0].repos_path) + ' created at revision ' + str(branch[0].created_rev.number))
 		# Use the last_author from this tuple i.s.o. getting it from the getSubversionLastLog function
-		addToBuildQueues(Build(os.path.basename(branch[0].repos_path), svnRepository + branch[0].repos_path, branch[0].last_author))
+		addToBuildQueues(SubversionBuild(os.path.basename(branch[0].repos_path), svnRepository + branch[0].repos_path, branch[0].last_author))
 
 	lastLog = getSubversionLastLog(svnRepository + '/trunk')
-	addToBuildQueues(Build('trunk', svnRepository + '/trunk', lastLog['author']))
+	addToBuildQueues(SubversionBuild('trunk', svnRepository + '/trunk', lastLog['author']))
 
 def addSubversionNightly():
 	svnRepository = str(config.get('subversion', 'repository'))
 	lastLog = getSubversionLastLog(svnRepository + '/trunk')
-	addToBuildQueues(Build('trunk', svnRepository + '/trunk', lastLog['author'], 'nightly'))
+	addToBuildQueues(SubversionBuild('trunk', svnRepository + '/trunk', lastLog['author'], 'nightly'))
 	log.info('Inserted nightly')
 
 def writeDefaultConfig():
