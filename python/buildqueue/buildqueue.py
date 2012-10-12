@@ -71,6 +71,9 @@ class Build:
 	def setPlatform(self, platform):
 		self.platform = platform
 
+	def getPlatform(self):
+		return self.platform
+
 	def getName(self):
 		return self.name
 
@@ -79,30 +82,31 @@ class SubversionBuild(Build):
 		Build.__init__(self, name, path, lastauthor, platform, buildtype)
 		self.client = pysvn.Client()
 		self.client.callback_get_login = get_login
+		self.platform = platform
+		self.buildscript = ""
 
 	def prebuild(self):
-		exportpath = os.path.normpath(os.path.expandvars(str(config.get('general','pivotdirectory')) + '/' + self.platform + '/buildscripts'))
+		self.exportpath = os.path.normpath(os.path.expandvars(str(config.get('general','pivotdirectory')) + '/' + self.platform + '/buildscripts'))
+		self.buildscript = self.exportpath + '/' + self.name + '-build-stage2.cmake'
 
 		try:
-			os.makedirs(exportpath)
+			os.makedirs(self.exportpath)
 		except OSError, e:
 			if e.errno == errno.EEXIST:
 				pass
 			else: raise
 
-		buildscript = exportpath + '/' + self.name + '-build-stage2.cmake'
-
 		# export the buildscript that will perform the actual build of the branch
 		try:
-			self.client.export(self.path + '/' + str(config.get('general','buildscript')), buildscript, force=True, recurse=False)
+			self.client.export(self.path + '/' + str(config.get('general','buildscript')), self.buildscript, force=True, recurse=False)
 		except pysvn.ClientError, e:
 			log.warning("Failed to export the buildscript for " + self.name + ':' + str(e))
 			return False
 
 		# check if this is a 'new' buildscript
-		for line in open(buildscript):
+		for line in open(self.buildscript):
 			if "SERVERBUILD" in line:
-				newbuild = True
+				self.newbuild = True
 				log.debug(self.platform + " " + self.name + " detected an new style buildscript")
 				break
 
@@ -116,18 +120,18 @@ class SubversionBuild(Build):
 		try:
 			command = "ctest"
 			argument1 = "--script"
-			argument2 = buildscript + ",platform=" + platform + ";branch=" + name + ";repo=" + path.replace('svn://','') + ";repotype=svn" + ";server" + ";" + buildtype
+			argument2 = self.buildscript + ",platform=" + self.platform + ";branch=" + self.name + ";repo=" + self.path.replace('svn://','') + ";repotype=svn" + ";server" + ";" + self.buildtype
 			#log.debug("cmdline: " + command + ' ' + argument1 + argument2)
 			retcode = subprocess.call([command, argument1, argument2])
 
 			if retcode < 0:
-				log.warning(self.name + " " + name + " was terminated by signal: " + str(-retcode))
+				log.warning(self.platform + " " + self.name + " was terminated by signal: " + str(-retcode))
 				return
 			else:
-				log.info(self.name + " " + name + " returned: " + str(retcode))
+				log.info(self.platform + " " + self.name + " returned: " + str(retcode))
 				return
 		except OSError, e:
-			log.warning(self.name + " " + name + " execution failed: " + str(e))
+			log.warning(self.platform + " " + self.name + " execution failed: " + str(e))
 			return
 
 class ThreadClass(threading.Thread):
@@ -152,7 +156,7 @@ class ThreadClass(threading.Thread):
 				continue
 
 			if(item[2].isNewBuild()):
-				item.build()
+				item[2].build()
 				self.queue.task_done()
 				continue
 			else:
