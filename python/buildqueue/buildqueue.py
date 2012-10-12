@@ -60,7 +60,7 @@ class BuildQueue(Queue.PriorityQueue):
 		return self.platform
 
 class Build:
-	def __init__(self, name, path, lastauthor, platform = 'none', buildtype = 'experimental'):
+	def __init__(self, name, path, lastauthor, platform, buildtype):
 		self.name = name
 		self.path = path
 		self.lastauthor = lastauthor
@@ -78,7 +78,7 @@ class Build:
 		return self.name
 
 class SubversionBuild(Build):
-	def __init__(self, name, path, lastauthor, platform = 'none', buildtype = 'experimental'):
+	def __init__(self, name, path, lastauthor, platform, buildtype):
 		Build.__init__(self, name, path, lastauthor, platform, buildtype)
 		self.client = pysvn.Client()
 		self.client.callback_get_login = get_login
@@ -198,15 +198,15 @@ def addSubversionBuilds():
 	for branch in branchList[1:]:
 		log.debug('Found branch: ' +  os.path.basename(branch[0].repos_path) + ' created at revision ' + str(branch[0].created_rev.number))
 		# Use the last_author from this tuple i.s.o. getting it from the getSubversionLastLog function
-		addToBuildQueues(SubversionBuild(os.path.basename(branch[0].repos_path), svnRepository + branch[0].repos_path, branch[0].last_author))
+		addToBuildQueues(SubversionBuild(os.path.basename(branch[0].repos_path), svnRepository + branch[0].repos_path, branch[0].last_author, 'none', 'experimental'))
 
 	lastLog = getSubversionLastLog(svnRepository + '/trunk')
-	addToBuildQueues(SubversionBuild('trunk', svnRepository + '/trunk', lastLog['author']))
+	addToBuildQueues(SubversionBuild('trunk', svnRepository + '/trunk', lastLog['author'], 'none', 'experimental'))
 
 def addSubversionNightly():
 	svnRepository = str(config.get('subversion', 'repository'))
 	lastLog = getSubversionLastLog(svnRepository + '/trunk')
-	addToBuildQueues(SubversionBuild('trunk', svnRepository + '/trunk', lastLog['author'], 'nightly'))
+	addToBuildQueues(SubversionBuild('trunk', svnRepository + '/trunk', lastLog['author'], 'none', 'nightly'))
 	log.info('Inserted nightly')
 
 def writeDefaultConfig():
