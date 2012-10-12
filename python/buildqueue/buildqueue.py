@@ -25,8 +25,8 @@ import logging.handlers
 # -- add notification mechanism
 # -- add init / upstart / systemd scripts
 # -- remove log output from terminal
-# -- inherit subversion build from build and move svn specific code to class
 # -- make svn build more robust (non resolving hostname kills this script)
+# -- svn client can only be used on one thread at a time, think about retry mechanism when encountering 'client in use on another thread'
 
 ##################################################################################
 class BuildQueue(Queue.PriorityQueue):
