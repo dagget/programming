@@ -17,6 +17,7 @@ import errno
 import subprocess
 import ConfigParser
 import logging.handlers
+import pickle # for timestamp
 
 
 ## TODO
@@ -232,6 +233,40 @@ def writeDefaultConfig():
 
 	sys.exit()
 
+def getNightlyTimestamp():
+	lastNightlyTime = datetime(date.today().year, date.today().month, date.today().day, 1, 0, 0)
+	lastNightlyFile = 'buildqueue.nightlytimestamp'
+
+	if os.path.exists(lastNightlyFile):
+		try:
+			f = open(lastNightlyFile, 'r+b')
+			lastNightlyTime = pickle.load(f)
+			f.close()
+		except IOError, e:
+			log.warning("Could not read nightly timestamp file, using today")
+	else:
+		updateNightlyTimestamp(lastNightlyTime)
+
+	return lastNightlyTime
+
+def updateNightlyTimestamp(lastNightlyTime):
+	try:
+		f = open(lastNightlyFile, 'wb')
+		pickle.dump(lastNightlyTime, f)
+		f.close()
+	except IOError, e:
+		log.warning("Could not write nightly timestamp file, using today")
+
+def checkNightlyTimestamp(lastNightlyTime, currentTime):
+	delta = currentTime - lastNightlyTime
+
+	if(delta.total_seconds() > (24 * 3600)):
+		lastNightlyTime = datetime(date.today().year, date.today().month, date.today().day, 1, 0, 0)
+		updateNightlyTimestamp(lastNightlyTime)
+		return True
+	else:
+		return False
+
 def main():
 	global config
 	config = ConfigParser.SafeConfigParser()
@@ -279,6 +314,9 @@ def main():
 	global BuildQueues
 	BuildQueues = []
 
+	global lastNightlyFile
+	lastNightlyFile = 'buildqueue.nightlytimestamp'
+
 	if sys.platform[:5] == 'linux':
 		BuildQueues.append(BuildQueue(QueueLen, 'linux-arm'))
 		BuildQueues.append(BuildQueue(QueueLen, 'linux-x86'))
@@ -301,14 +339,10 @@ def main():
 			thread.join()
 			sys.exit()
 
-	lastNightlyTime = datetime(date.today().year, date.today().month, date.today().day, 1, 0, 0)
+	lastNightlyTime = getNightlyTimestamp()
 
 	while True:
-		currentTime = datetime.now()
-		delta = currentTime - lastNightlyTime
-
-		if(delta.total_seconds() > (24 * 3600)):
-			lastNightlyTime = datetime(date.today().year, date.today().month, date.today().day, 1, 0, 0)
+		if checkNightlyTimestamp(lastNightlyTime, datetime.now()):
 			addSubversionNightly()
 
 		addSubversionBuilds()
