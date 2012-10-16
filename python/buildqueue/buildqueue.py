@@ -344,6 +344,7 @@ def main():
 	while True:
 		if checkNightlyTimestamp(lastNightlyTime, datetime.now()):
 			addSubversionNightly()
+			lastNightlyTime = getNightlyTimestamp()
 
 		addSubversionBuilds()
 		time.sleep(30)
