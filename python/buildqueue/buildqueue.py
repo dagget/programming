@@ -6,6 +6,7 @@
 # automatically start a build.
 
 import os
+import shutil
 import sys
 from datetime import datetime,date
 import time
@@ -187,10 +188,21 @@ def getSubversionLastLog(path):
 	logs = client.log(path, limit=1)
 	return {'author' : logs[0].author, 'revision' : logs[0].revision, 'date' : logs[0].date}
 
-def addSubversionBuilds():
+def processSubversionBuilds():
 	client = pysvn.Client()
 	client.callback_get_login = get_login
 	svnRepository = str(config.get('subversion', 'repository'))
+
+	lastLog = getSubversionLastLog(svnRepository + '/trunk')
+
+	lastNightlyTime = getNightlyTimestamp()
+
+	# Nightly
+	if checkNightlyTimestamp(lastNightlyTime, datetime.now()):
+		addToBuildQueues(SubversionBuild('trunk', svnRepository + '/trunk', lastLog['author'], 'none', 'nightly'))
+		log.info('Inserted nightly')
+
+	addToBuildQueues(SubversionBuild('trunk', svnRepository + '/trunk', lastLog['author'], 'none', 'experimental'))
 
 	# find branch names (returns a list of tuples)
 	branchList = client.list(svnRepository + '/branches', depth=pysvn.depth.immediates)
@@ -201,14 +213,27 @@ def addSubversionBuilds():
 		# Use the last_author from this tuple i.s.o. getting it from the getSubversionLastLog function
 		addToBuildQueues(SubversionBuild(os.path.basename(branch[0].repos_path), svnRepository + branch[0].repos_path, branch[0].last_author, 'none', 'experimental'))
 
-	lastLog = getSubversionLastLog(svnRepository + '/trunk')
-	addToBuildQueues(SubversionBuild('trunk', svnRepository + '/trunk', lastLog['author'], 'none', 'experimental'))
+	# clean up builddirectories for which no branch exists anymore
+	for queue in BuildQueues[:]:
+		builddirpath = os.path.normpath(os.path.expandvars(str(config.get('general','pivotdirectory')) + '/' + queue.getPlatform() + '/build'))
+		builddirList = os.listdir(builddirpath)
+		for branch in branchList[1:]:
+			try:
+				builddirList.remove(os.path.basename(branch[0].repos_path))
+			except:
+				log.info(queue.getPlatform() + ': no builddir exists for ' + os.path.basename(branch[0].repos_path))
 
-def addSubversionNightly():
-	svnRepository = str(config.get('subversion', 'repository'))
-	lastLog = getSubversionLastLog(svnRepository + '/trunk')
-	addToBuildQueues(SubversionBuild('trunk', svnRepository + '/trunk', lastLog['author'], 'none', 'nightly'))
-	log.info('Inserted nightly')
+		try:
+			builddirList.remove('trunk')
+		except:
+			log.info(queue.getPlatform() + ': no builddir exists for trunk')
+
+		for builddir in builddirList[:]:
+			try:
+				log.info(queue.getPlatform() + ': removing build directory for: ' + builddirpath + '/' + builddir)
+				shutil.rmtree(builddirpath + '/' + builddir)
+			except e:
+				log.warning(queue.getPlatform() + ': failed to remove build directory for: ' + builddirpath + '/' + builddir + ' :' + str(e))
 
 def writeDefaultConfig():
 	try:
@@ -339,14 +364,8 @@ def main():
 			thread.join()
 			sys.exit()
 
-	lastNightlyTime = getNightlyTimestamp()
-
 	while True:
-		if checkNightlyTimestamp(lastNightlyTime, datetime.now()):
-			addSubversionNightly()
-			lastNightlyTime = getNightlyTimestamp()
-
-		addSubversionBuilds()
+		processSubversionBuilds()
 		time.sleep(30)
 
 ##################################################################################
