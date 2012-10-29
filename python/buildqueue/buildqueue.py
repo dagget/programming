@@ -185,7 +185,11 @@ def getSubversionLastLog(path):
 	client.callback_get_login = get_login
 	svnRepository = str(config.get('subversion', 'repository'))
 	
-	logs = client.log(path, limit=1)
+	try:
+		logs = client.log(path, limit=1)
+	except pysvn.ClientError, e:
+		log.warning('Failed to get the last log: ' + str(e))
+
 	return {'author' : logs[0].author, 'revision' : logs[0].revision, 'date' : logs[0].date}
 
 def processSubversionBuilds():
@@ -205,7 +209,10 @@ def processSubversionBuilds():
 	addToBuildQueues(SubversionBuild('trunk', svnRepository + '/trunk', lastLog['author'], 'none', 'experimental'))
 
 	# find branch names (returns a list of tuples)
-	branchList = client.list(svnRepository + '/branches', depth=pysvn.depth.immediates)
+	try:
+		branchList = client.list(svnRepository + '/branches', depth=pysvn.depth.immediates)
+	except pysvn.ClientError, e:
+		log.warning('Failed to get the branchlist: ' + str(e))
 
 	# skip the first entry in the list as it is /branches (the directory in the repo)
 	for branch in branchList[1:]:
