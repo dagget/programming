@@ -62,13 +62,13 @@ class BuildQueue(Queue.PriorityQueue):
 		return self.platform
 
 class Build:
-	def __init__(self, name, path, lastauthor, platform, buildtype):
+	def __init__(self, name, path, lastauthor, buildtype):
 		self.name = name
 		self.path = path
 		self.lastauthor = lastauthor
 		self.buildtype = buildtype
 		self.newbuild = False
-		self.platform = platform
+		self.platform = ""
 
 	def setPlatform(self, platform):
 		self.platform = platform
@@ -80,13 +80,16 @@ class Build:
 		return self.name
 
 class SubversionBuild(Build):
-	def __init__(self, name, path, lastauthor, platform, buildtype):
-		Build.__init__(self, name, path, lastauthor, platform, buildtype)
+	def __init__(self, name, path, lastauthor, buildtype):
+		Build.__init__(self, name, path, lastauthor, buildtype)
 		self.path = str(config.get('subversion', 'repository')) + path
-		self.platform = platform
 		self.buildscript = ""
 
 	def prebuild(self):
+		if(self.platform == ''):
+				log.warning("could not do prebuild for: " + name + " platform not set")
+				return False
+
 		self.exportpath = os.path.normpath(os.path.expandvars(str(config.get('general','pivotdirectory')) + '/' + self.platform + '/buildscripts'))
 		self.buildscript = self.exportpath + '/' + self.name + '-build-stage2.cmake'
 
@@ -217,12 +220,12 @@ class SubversionClient():
 ##################################################################################
 def addToBuildQueues(build):
 	for queue in BuildQueues[:]:
-			try:
-				build.setPlatform(queue.getPlatform())
+		try:
+			build.setPlatform(queue.getPlatform())
 				# for now just using one priority. The second argument is used for sorting within a priority level
 				queue.enqueue((1, 1, build))
-			except Queue.Full:
-					log.warning(queue.name + ' queue full, skipping: ' + build.name)
+		except Queue.Full:
+			log.warning(queue.name + ' queue full, skipping: ' + build.name)
 
 def processSubversionBuilds():
 	lastLog = subversionClient.getSubversionLastLog('/trunk')
@@ -230,10 +233,10 @@ def processSubversionBuilds():
 
 	# Nightly
 	if checkNightlyTimestamp(lastNightlyTime, datetime.now()):
-		addToBuildQueues(SubversionBuild('trunk', '/trunk', lastLog['author'], 'none', 'nightly'))
+		addToBuildQueues(SubversionBuild('trunk', '/trunk', lastLog['author'], 'nightly'))
 		log.info('Inserted nightly')
 
-	addToBuildQueues(SubversionBuild('trunk', '/trunk', lastLog['author'], 'none', 'experimental'))
+	addToBuildQueues(SubversionBuild('trunk', '/trunk', lastLog['author'], 'experimental'))
 
 	branchList = subversionClient.getBranchList()
 
@@ -241,7 +244,7 @@ def processSubversionBuilds():
 	for branch in branchList[1:]:
 		log.debug('Found branch: ' +  os.path.basename(branch[0].repos_path) + ' created at revision ' + str(branch[0].created_rev.number))
 		# Use the last_author from this tuple i.s.o. getting it from the getSubversionLastLog function
-		addToBuildQueues(SubversionBuild(os.path.basename(branch[0].repos_path), branch[0].repos_path, branch[0].last_author, 'none', 'experimental'))
+		addToBuildQueues(SubversionBuild(os.path.basename(branch[0].repos_path), branch[0].repos_path, branch[0].last_author, 'experimental'))
 
 	# clean up builddirectories for which no branch exists anymore
 	for queue in BuildQueues[:]:
