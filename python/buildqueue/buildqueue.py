@@ -82,8 +82,7 @@ class Build:
 class SubversionBuild(Build):
 	def __init__(self, name, path, lastauthor, platform, buildtype):
 		Build.__init__(self, name, path, lastauthor, platform, buildtype)
-		self.client = pysvn.Client()
-		self.client.callback_get_login = get_login
+		self.path = str(config.get('subversion', 'repository')) + path
 		self.platform = platform
 		self.buildscript = ""
 
@@ -98,11 +97,7 @@ class SubversionBuild(Build):
 				pass
 			else: raise
 
-		# export the buildscript that will perform the actual build of the branch
-		try:
-			self.client.export(self.path + '/' + str(config.get('general','buildscript')), self.buildscript, force=True, recurse=False)
-		except pysvn.ClientError, e:
-			log.warning("Failed to export the buildscript for " + self.name + ':' + str(e))
+		if(not subversionClient.exportBuildScript(self.name, self.path + '/' + str(config.get('general','buildscript')), self.buildscript)):
 			return False
 
 		# check if this is a 'new' buildscript
@@ -165,12 +160,61 @@ class ThreadClass(threading.Thread):
 				log.info(self.name + " " + item[2].getName() + " detected an old style buildscript - skipping")
 				self.queue.task_done()
 
-##################################################################################
-# callback needed for the subversion client
-def get_login( realm, username, may_save ):
-	"""callback implementation for Subversion login"""
-	return True, config.get('subversion', 'user'), config.get('subversion', 'password'), True
+# Wrapper class to implement blocking locks
+class SubversionClient():
+	def __init__(self):
+		self.client = pysvn.Client()
+		self.client.callback_get_login = self.get_login
+		self.svnRepository = str(config.get('subversion', 'repository'))
+		self.lock = threading.Lock()
 
+	# callback needed for the subversion client
+	def get_login( realm, username, may_save ):
+		"""callback implementation for Subversion login"""
+		return True, config.get('subversion', 'user'), config.get('subversion', 'password'), True
+
+	def getSubversionLastLog(self, path):
+		log.debug('get lastlog in: ' + path)
+		self.lock.acquire()
+
+		try:
+			logs = self.client.log(self.svnRepository + path, limit=1)
+		except pysvn.ClientError, e:
+			log.warning('Failed to get the last log: ' + str(e))
+
+		self.lock.release()
+		log.debug('get lastlog out: ' + path)
+
+		return {'author' : logs[0].author, 'revision' : logs[0].revision, 'date' : logs[0].date}
+
+	def getBranchList(self):
+		log.debug('get branchlist in:')
+		self.lock.acquire()
+		# find branch names (returns a list of tuples)
+		try:
+			branchList = self.client.list(self.svnRepository + '/branches', depth=pysvn.depth.immediates)
+		except pysvn.ClientError, e:
+			log.warning('Failed to get the branchlist: ' + str(e))
+
+		self.lock.release()
+		log.debug('get branchlist out:')
+		return branchList
+
+	def exportBuildScript(self, name, path, buildscript):
+		log.debug('get buildscript in: ' + path)
+		self.lock.acquire()
+		# export the buildscript that will perform the actual build of the branch
+		try:
+			self.client.export(path, buildscript, force=True, recurse=False)
+		except pysvn.ClientError, e:
+			log.warning("Failed to export the buildscript for " + name + ':' + str(e))
+			return False
+
+		self.lock.release()
+		log.debug('get buildscript out: ' + path)
+		return True
+
+##################################################################################
 def addToBuildQueues(build):
 	for queue in BuildQueues[:]:
 			try:
@@ -180,45 +224,24 @@ def addToBuildQueues(build):
 			except Queue.Full:
 					log.warning(queue.name + ' queue full, skipping: ' + build.name)
 
-def getSubversionLastLog(path):
-	client = pysvn.Client()
-	client.callback_get_login = get_login
-	svnRepository = str(config.get('subversion', 'repository'))
-	
-	try:
-		logs = client.log(path, limit=1)
-	except pysvn.ClientError, e:
-		log.warning('Failed to get the last log: ' + str(e))
-
-	return {'author' : logs[0].author, 'revision' : logs[0].revision, 'date' : logs[0].date}
-
 def processSubversionBuilds():
-	client = pysvn.Client()
-	client.callback_get_login = get_login
-	svnRepository = str(config.get('subversion', 'repository'))
-
-	lastLog = getSubversionLastLog(svnRepository + '/trunk')
-
+	lastLog = subversionClient.getSubversionLastLog('/trunk')
 	lastNightlyTime = getNightlyTimestamp()
 
 	# Nightly
 	if checkNightlyTimestamp(lastNightlyTime, datetime.now()):
-		addToBuildQueues(SubversionBuild('trunk', svnRepository + '/trunk', lastLog['author'], 'none', 'nightly'))
+		addToBuildQueues(SubversionBuild('trunk', '/trunk', lastLog['author'], 'none', 'nightly'))
 		log.info('Inserted nightly')
 
-	addToBuildQueues(SubversionBuild('trunk', svnRepository + '/trunk', lastLog['author'], 'none', 'experimental'))
+	addToBuildQueues(SubversionBuild('trunk', '/trunk', lastLog['author'], 'none', 'experimental'))
 
-	# find branch names (returns a list of tuples)
-	try:
-		branchList = client.list(svnRepository + '/branches', depth=pysvn.depth.immediates)
-	except pysvn.ClientError, e:
-		log.warning('Failed to get the branchlist: ' + str(e))
+	branchList = subversionClient.getBranchList()
 
 	# skip the first entry in the list as it is /branches (the directory in the repo)
 	for branch in branchList[1:]:
 		log.debug('Found branch: ' +  os.path.basename(branch[0].repos_path) + ' created at revision ' + str(branch[0].created_rev.number))
 		# Use the last_author from this tuple i.s.o. getting it from the getSubversionLastLog function
-		addToBuildQueues(SubversionBuild(os.path.basename(branch[0].repos_path), svnRepository + branch[0].repos_path, branch[0].last_author, 'none', 'experimental'))
+		addToBuildQueues(SubversionBuild(os.path.basename(branch[0].repos_path), branch[0].repos_path, branch[0].last_author, 'none', 'experimental'))
 
 	# clean up builddirectories for which no branch exists anymore
 	for queue in BuildQueues[:]:
@@ -341,6 +364,9 @@ def main():
 	log.addHandler(fh)
 
 	log.debug('starting main loop')
+
+	global subversionClient
+	subversionClient = SubversionClient()
 
 	QueueLen    = 48 # just a stab at a sane queue length
 	global BuildQueues
