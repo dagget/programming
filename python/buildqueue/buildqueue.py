@@ -222,8 +222,8 @@ def addToBuildQueues(build):
 	for queue in BuildQueues[:]:
 		try:
 			build.setPlatform(queue.getPlatform())
-				# for now just using one priority. The second argument is used for sorting within a priority level
-				queue.enqueue((1, 1, build))
+			# for now just using one priority. The second argument is used for sorting within a priority level
+			queue.enqueue((1, 1, build))
 		except Queue.Full:
 			log.warning(queue.name + ' queue full, skipping: ' + build.name)
 
