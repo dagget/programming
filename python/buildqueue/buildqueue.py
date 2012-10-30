@@ -19,6 +19,7 @@ import subprocess
 import ConfigParser
 import logging.handlers
 import pickle # for timestamp
+import copy
 
 
 ## TODO
@@ -219,13 +220,14 @@ class SubversionClient():
 
 ##################################################################################
 def addToBuildQueues(build):
-	for queue in BuildQueues[:]:
+	for bqueue in BuildQueues[:]:
 		try:
-			build.setPlatform(queue.getPlatform())
+			buildcopy = copy.copy(build)
+			buildcopy.setPlatform(bqueue.getPlatform())
 			# for now just using one priority. The second argument is used for sorting within a priority level
-			queue.enqueue((1, 1, build))
+			bqueue.enqueue((1, 1, buildcopy))
 		except Queue.Full:
-			log.warning(queue.name + ' queue full, skipping: ' + build.name)
+			log.warning(bqueue.name + ' queue full, skipping: ' + buildcopy.name)
 
 def processSubversionBuilds():
 	lastLog = subversionClient.getSubversionLastLog('/trunk')
@@ -389,7 +391,7 @@ def main():
 
 	# Start build queue threads
 	for queue in BuildQueues[:]:
-		thread = ThreadClass(queue, queue.platform)
+		thread = ThreadClass(queue, queue.getPlatform())
 		# let threads be killed when main is killed
 		thread.setDaemon(True)
 
