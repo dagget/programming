@@ -267,7 +267,7 @@ def processSubversionBuilds():
 			try:
 				log.info(queue.getPlatform() + ': removing build directory for: ' + builddirpath + '/' + builddir)
 				shutil.rmtree(builddirpath + '/' + builddir)
-			except e:
+			except OSError, e:
 				log.warning(queue.getPlatform() + ': failed to remove build directory for: ' + builddirpath + '/' + builddir + ' :' + str(e))
 
 def writeDefaultConfig():
