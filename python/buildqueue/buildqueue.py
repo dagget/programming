@@ -175,7 +175,7 @@ class QueueThreadClass(threading.Thread):
 					self.queue.task_done()
 					continue
 				else:
-					log.info(self.name + " " + item[2].getName() + " detected an old style buildscript - skipping")
+					log.debug(self.name + " " + item[2].getName() + " detected an old style buildscript - skipping")
 					self.queue.task_done()
 			else:
 				time.sleep(30)
