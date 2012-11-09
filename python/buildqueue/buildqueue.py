@@ -20,6 +20,7 @@ import ConfigParser
 import logging.handlers
 import pickle # for timestamp
 import copy
+import socket
 
 
 ## TODO
@@ -29,7 +30,6 @@ import copy
 # -- add init / upstart / systemd scripts
 # -- remove log output from terminal
 # -- make svn build more robust (non resolving hostname kills this script)
-# -- svn client can only be used on one thread at a time, think about retry mechanism when encountering 'client in use on another thread'
 
 ##################################################################################
 class BuildQueue(Queue.PriorityQueue):
@@ -61,6 +61,13 @@ class BuildQueue(Queue.PriorityQueue):
 
 	def getPlatform(self):
 		return self.platform
+
+	def list(self):
+		queueAsString = ""
+		for elem in self:
+			queueAsString += elem
+
+		return queueAsString
 
 class Build:
 	def __init__(self, name, path, lastauthor, buildtype):
@@ -135,7 +142,7 @@ class SubversionBuild(Build):
 			log.warning(self.platform + " " + self.name + " execution failed: " + str(e))
 			return
 
-class ThreadClass(threading.Thread):
+class QueueThreadClass(threading.Thread):
 	def __init__(self, queue, name):
 		threading.Thread.__init__(self)
 		self.queue = queue
@@ -163,6 +170,33 @@ class ThreadClass(threading.Thread):
 			else:
 				log.info(self.name + " " + item[2].getName() + " detected an old style buildscript - skipping")
 				self.queue.task_done()
+
+class SocketThreadClass(threading.Thread):
+	def __init__(self, port):
+		threading.Thread.__init__(self)
+		self.port = port
+		self.stop_event = threading.Event()
+
+	def stop(self):
+		self.stop_event.set()
+
+	def run(self):
+		log.debug("%s started at time: %s" % (self.name, datetime.now()))
+		s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		s.bind(('', self.port))
+		s.listen(1)
+		conn, addr = s.accept()
+
+		while not self.stop_event.isSet():
+			data = conn.recv(1024)
+			if not data:
+				break
+			else: 
+				if "list" in data:
+					for bqueue in BuildQueues[:]:
+						conn.sendall(bqueue.list())
+
+		conn.close()
 
 # Wrapper class to implement blocking locks
 class SubversionClient():
@@ -278,8 +312,7 @@ def writeDefaultConfig():
 		defaultConfig.write('buildscript : \n')
 		defaultConfig.write('# loglevel may be one of: debug, info, warning, error, critical\n')
 		defaultConfig.write('loglevel   : \n')
-		defaultConfig.write('# for example @example.com\n')
-		defaultConfig.write('maildomain : \n')
+		defaultConfig.write('port : \n')
 		defaultConfig.write('[subversion]\n')
 		defaultConfig.write('repository : <repository url>\n')
 		defaultConfig.write('user       : <username>\n')
@@ -337,9 +370,9 @@ def main():
 		sys.exit()
 
 	try:
+		config.get('general', 'port')
 		config.get('general', 'buildscript')
 		config.get('general', 'loglevel')
-		config.get('general', 'maildomain')
 		config.get('general', 'pivotdirectory')
 		config.get('subversion', 'repository')
 		config.get('subversion', 'user')
@@ -391,7 +424,7 @@ def main():
 
 	# Start build queue threads
 	for queue in BuildQueues[:]:
-		thread = ThreadClass(queue, queue.getPlatform())
+		thread = QueueThreadClass(queue, queue.getPlatform())
 		# let threads be killed when main is killed
 		thread.setDaemon(True)
 
@@ -401,6 +434,15 @@ def main():
 			thread.stop()
 			thread.join()
 			sys.exit()
+
+	# Start socket to show buildqueues
+	thread = SocketThreadClass(config.getint('general', 'port'))
+	try:
+		thread.start()
+	except (KeyboardInterrupt, SystemExit):
+		thread.stop()
+		thread.join()
+		sys.exit()
 
 	while True:
 		processSubversionBuilds()
