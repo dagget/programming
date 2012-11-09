@@ -22,6 +22,10 @@ import pickle # for timestamp
 import copy
 import socket
 
+# prints stacktraces for each thread
+# acquired from http://code.activestate.com/recipes/577334-how-to-debug-deadlocked-multi-threaded-programs/
+#sys.path.append('/path/to/tracemodule')
+#import stacktracer
 
 ## TODO
 # -- add git repo support
@@ -365,6 +369,8 @@ def checkNightlyTimestamp(lastNightlyTime, currentTime):
 		return False
 
 def main():
+	#stacktracer.trace_start("trace.html",interval=5,auto=True)
+
 	global config
 	config = ConfigParser.SafeConfigParser()
 	configfiles = config.read(['/etc/buildqueue', os.path.expanduser('~/.buildqueue')])
@@ -451,6 +457,8 @@ def main():
 	while True:
 		processSubversionBuilds()
 		time.sleep(30)
+
+	#stacktracer.trace_stop()
 
 ##################################################################################
 if __name__ == '__main__':
