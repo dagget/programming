@@ -21,6 +21,7 @@ import logging.handlers
 import pickle # for timestamp
 import copy
 import socket
+import HTMLgen
 
 # prints stacktraces for each thread
 # acquired from http://code.activestate.com/recipes/577334-how-to-debug-deadlocked-multi-threaded-programs/
@@ -43,6 +44,7 @@ class BuildQueue(Queue.PriorityQueue):
 		self.builds = {} # maintain a hash of branches added to sift out doubles
 		self.lock = threading.Lock()
 		self.platform = platform
+		self.current = ""
 	
 	def enqueue(self, item):
 		# if a build is in the queue then don't add it again
@@ -60,20 +62,24 @@ class BuildQueue(Queue.PriorityQueue):
 		self.lock.acquire()
 		item = self.get_nowait()
 		del self.builds[item[2].name]
+		self.current = item[2].name
 		self.lock.release()
 		return item
 
 	def getPlatform(self):
 		return self.platform
 
-	def list(self):
-		queueAsString = "###" + self.platform + " :"
+	def asList(self):
+		queueAsString = self.platform + ":\n"
 		for elem in self.queue:
-			queueAsString += " " + elem[2].getName()
+			queueAsString += elem[2].getName() + "\n"
 
-		queueAsString += " ###"
+		queueAsString += " currently building: " + self.current + "\n"
 
 		return queueAsString
+
+	def asHTML(self):
+			return self.list().replace("\n", "<br>")
 
 class Build:
 	def __init__(self, name, path, lastauthor, buildtype):
@@ -192,21 +198,34 @@ class SocketThreadClass(threading.Thread):
 	def run(self):
 		log.debug("%s started at time: %s" % (self.name, datetime.now()))
 		s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		s.bind(('', self.port))
 		s.listen(1)
-		conn, addr = s.accept()
 
 		while not self.stop_event.isSet():
-			data = conn.recv(1024)
-			if not data:
-				break
-			else: 
-				if "list" in data:
-					for bqueue in BuildQueues[:]:
-						log.debug(bqueue.list())
-						conn.sendall(bqueue.list())
+			conn, addr = s.accept()
+			while 1:
+				data = conn.recv(1024)
 
-		conn.close()
+				if data:
+					if "list" in data:
+						for bqueue in BuildQueues[:]:
+							log.debug(bqueue.asList())
+							conn.sendall(bqueue.asList())
+				else:
+					break
+			#try:
+			#	doc = HTMLgen.SimpleDocument(title="BuildQueue")
+			#	for bqueue in BuildQueues[:]:
+			#		doc.append(bqueue.asHTML())
+
+			#	conn.sendall(str(doc))
+			#	doc = ""
+			#except socket.timeout:
+			#	break
+
+
+			conn.close()
 
 # Wrapper class to implement blocking locks
 class SubversionClient():
@@ -445,7 +464,7 @@ def main():
 		except (KeyboardInterrupt, SystemExit):
 			thread.stop()
 			thread.join()
-			sys.exit()
+			return
 
 	# Start socket to show buildqueues
 	thread = SocketThreadClass(config.getint('general', 'port'))
@@ -454,7 +473,7 @@ def main():
 	except (KeyboardInterrupt, SystemExit):
 		thread.stop()
 		thread.join()
-		sys.exit()
+		return
 
 	while True:
 		processSubversionBuilds()
