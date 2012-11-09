@@ -203,17 +203,21 @@ class SocketThreadClass(threading.Thread):
 		s.listen(1)
 
 		while not self.stop_event.isSet():
-			conn, addr = s.accept()
-			while 1:
-				data = conn.recv(1024)
+			try:
+				conn, addr = s.accept()
+				while 1:
+					data = conn.recv(1024)
 
-				if data:
-					if "list" in data:
-						for bqueue in BuildQueues[:]:
-							log.debug(bqueue.asList())
-							conn.sendall(bqueue.asList())
-				else:
-					break
+					if data:
+						if "list" in data:
+							for bqueue in BuildQueues[:]:
+								log.debug(bqueue.asList())
+								conn.sendall(bqueue.asList())
+					else:
+						break
+			else sockec.error, e:
+				log.warning('failure on socket: ' + str(e))
+
 			#try:
 			#	doc = HTMLgen.SimpleDocument(title="BuildQueue")
 			#	for bqueue in BuildQueues[:]:
