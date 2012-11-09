@@ -67,9 +67,11 @@ class BuildQueue(Queue.PriorityQueue):
 		return self.platform
 
 	def list(self):
-		queueAsString = ""
+		queueAsString = "###" + self.platform + " :"
 		for elem in self.queue:
 			queueAsString += " " + elem[2].getName()
+
+		queueAsString += " ###"
 
 		return queueAsString
 
@@ -201,7 +203,7 @@ class SocketThreadClass(threading.Thread):
 			else: 
 				if "list" in data:
 					for bqueue in BuildQueues[:]:
-						log.info("received on socket #" + bqueue.list() + "#")
+						log.debug(bqueue.list())
 						conn.sendall(bqueue.list())
 
 		conn.close()
