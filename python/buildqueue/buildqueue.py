@@ -53,8 +53,8 @@ class BuildQueue(Queue.PriorityQueue):
 		self.lock.release()
 
 	def dequeue(self):
-		item = self.get()
 		self.lock.acquire()
+		item = self.get_nowait()
 		del self.builds[item[2].name]
 		self.lock.release()
 		return item
@@ -157,19 +157,22 @@ class QueueThreadClass(threading.Thread):
 
 		while not self.stop_event.isSet():
 			# returned value consists of: priority, sortorder, build object
-			item = self.queue.dequeue()
+			if not self.queue.empty():
+				item = self.queue.dequeue()
 
-			if(not item[2].prebuild()):
-				self.queue.task_done()
-				continue
+				if(not item[2].prebuild()):
+					self.queue.task_done()
+					continue
 
-			if(item[2].isNewBuild()):
-				item[2].build()
-				self.queue.task_done()
-				continue
+				if(item[2].isNewBuild()):
+					item[2].build()
+					self.queue.task_done()
+					continue
+				else:
+					log.info(self.name + " " + item[2].getName() + " detected an old style buildscript - skipping")
+					self.queue.task_done()
 			else:
-				log.info(self.name + " " + item[2].getName() + " detected an old style buildscript - skipping")
-				self.queue.task_done()
+				time.sleep(30)
 
 class SocketThreadClass(threading.Thread):
 	def __init__(self, port):
