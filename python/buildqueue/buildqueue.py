@@ -215,7 +215,7 @@ class SocketThreadClass(threading.Thread):
 								conn.sendall(bqueue.asList())
 					else:
 						break
-			else sockec.error, e:
+			except socket.error, e:
 				log.warning('failure on socket: ' + str(e))
 
 			#try:
