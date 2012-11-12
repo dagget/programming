@@ -285,6 +285,64 @@ class SubversionClient():
 		log.debug('get buildscript out: ' + path)
 		return True
 
+class Builds():
+	def __init__(self, lastNightlyTime):
+		self.lastNightlyTime = lastNightlyTime
+
+	def processBuilds(self):
+		print "process default builds"
+
+class SubversionBuilds(Builds):
+	def __init__(self, lastNightlyTime):
+		Builds.__init__(self, lastNightlyTime)
+
+	def processBuilds(self):
+		lastLog = subversionClient.getSubversionLastLog('/trunk')
+
+		# Nightly
+		if checkNightlyTimestamp(lastNightlyTime, datetime.now()):
+			addToBuildQueues(SubversionBuild('trunk', '/trunk', lastLog['author'], 'nightly'))
+			log.info('Inserted nightly')
+
+		addToBuildQueues(SubversionBuild('trunk', '/trunk', lastLog['author'], 'experimental'))
+
+		branchList = subversionClient.getBranchList()
+
+		# skip the first entry in the list as it is /branches (the directory in the repo)
+		for branch in branchList[1:]:
+			log.debug('Found branch: ' +  os.path.basename(branch[0].repos_path) + ' created at revision ' + str(branch[0].created_rev.number))
+			# Use the last_author from this tuple i.s.o. getting it from the getSubversionLastLog function
+			addToBuildQueues(SubversionBuild(os.path.basename(branch[0].repos_path), branch[0].repos_path, branch[0].last_author, 'experimental'))
+
+		# clean up builddirectories for which no branch exists anymore
+		for queue in BuildQueues[:]:
+			builddirpath = os.path.normpath(os.path.expandvars(str(config.get('general','pivotdirectory')) + '/' + queue.getPlatform() + '/build'))
+			builddirList = os.listdir(builddirpath)
+			for branch in branchList[1:]:
+				try:
+					builddirList.remove(os.path.basename(branch[0].repos_path))
+				except:
+					log.info(queue.getPlatform() + ': no builddir exists for ' + os.path.basename(branch[0].repos_path))
+
+			try:
+				builddirList.remove('trunk')
+			except:
+				log.info(queue.getPlatform() + ': no builddir exists for trunk')
+
+			for builddir in builddirList[:]:
+				try:
+					log.info(queue.getPlatform() + ': removing build directory for: ' + builddirpath + '/' + builddir)
+					shutil.rmtree(builddirpath + '/' + builddir)
+				except OSError, e:
+					log.warning(queue.getPlatform() + ': failed to remove build directory for: ' + builddirpath + '/' + builddir + ' :' + str(e))
+
+class GitBuilds():
+	def __init__(self, lastNightlyTime):
+		Builds.__init__(self, lastNightlyTime)
+
+	def processBuilds(self):
+		print "processed Git builds"
+
 ##################################################################################
 def addToBuildQueues(build):
 	for bqueue in BuildQueues[:]:
@@ -295,47 +353,6 @@ def addToBuildQueues(build):
 			bqueue.enqueue((1, 1, buildcopy))
 		except Queue.Full:
 			log.warning(bqueue.name + ' queue full, skipping: ' + buildcopy.name)
-
-def processSubversionBuilds():
-	lastLog = subversionClient.getSubversionLastLog('/trunk')
-	lastNightlyTime = getNightlyTimestamp()
-
-	# Nightly
-	if checkNightlyTimestamp(lastNightlyTime, datetime.now()):
-		addToBuildQueues(SubversionBuild('trunk', '/trunk', lastLog['author'], 'nightly'))
-		log.info('Inserted nightly')
-
-	addToBuildQueues(SubversionBuild('trunk', '/trunk', lastLog['author'], 'experimental'))
-
-	branchList = subversionClient.getBranchList()
-
-	# skip the first entry in the list as it is /branches (the directory in the repo)
-	for branch in branchList[1:]:
-		log.debug('Found branch: ' +  os.path.basename(branch[0].repos_path) + ' created at revision ' + str(branch[0].created_rev.number))
-		# Use the last_author from this tuple i.s.o. getting it from the getSubversionLastLog function
-		addToBuildQueues(SubversionBuild(os.path.basename(branch[0].repos_path), branch[0].repos_path, branch[0].last_author, 'experimental'))
-
-	# clean up builddirectories for which no branch exists anymore
-	for queue in BuildQueues[:]:
-		builddirpath = os.path.normpath(os.path.expandvars(str(config.get('general','pivotdirectory')) + '/' + queue.getPlatform() + '/build'))
-		builddirList = os.listdir(builddirpath)
-		for branch in branchList[1:]:
-			try:
-				builddirList.remove(os.path.basename(branch[0].repos_path))
-			except:
-				log.info(queue.getPlatform() + ': no builddir exists for ' + os.path.basename(branch[0].repos_path))
-
-		try:
-			builddirList.remove('trunk')
-		except:
-			log.info(queue.getPlatform() + ': no builddir exists for trunk')
-
-		for builddir in builddirList[:]:
-			try:
-				log.info(queue.getPlatform() + ': removing build directory for: ' + builddirpath + '/' + builddir)
-				shutil.rmtree(builddirpath + '/' + builddir)
-			except OSError, e:
-				log.warning(queue.getPlatform() + ': failed to remove build directory for: ' + builddirpath + '/' + builddir + ' :' + str(e))
 
 def writeDefaultConfig():
 	try:
@@ -479,8 +496,12 @@ def main():
 		thread.join()
 		return
 
+	lastNightlyTime = getNightlyTimestamp()
+
+	subversionBuilds = SubversionBuilds(lastNightlyTime)
+
 	while True:
-		processSubversionBuilds()
+		subversionBuilds.processBuilds()
 		time.sleep(30)
 
 	#stacktracer.trace_stop()
