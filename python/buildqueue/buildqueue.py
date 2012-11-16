@@ -301,7 +301,7 @@ class SubversionBuilds(Builds):
 		lastLog = subversionClient.getSubversionLastLog('/trunk')
 
 		# Nightly
-		if checkNightlyTimestamp(lastNightlyTime, datetime.now()):
+		if checkNightlyTimestamp(self.lastNightlyTime, datetime.now()):
 			addToBuildQueues(SubversionBuild('trunk', '/trunk', lastLog['author'], 'nightly'))
 			log.info('Inserted nightly')
 
