@@ -279,6 +279,7 @@ class SubversionClient():
 			self.client.export(path, buildscript, force=True, recurse=False)
 		except pysvn.ClientError, e:
 			log.warning("Failed to export the buildscript for " + name + ':' + str(e))
+			self.lock.release()
 			return False
 
 		self.lock.release()
