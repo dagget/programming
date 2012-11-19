@@ -303,6 +303,7 @@ class SubversionBuilds(Builds):
 		# Nightly
 		if checkNightlyTimestamp(self.lastNightlyTime, datetime.now()):
 			addToBuildQueues(SubversionBuild('trunk', '/trunk', lastLog['author'], 'nightly'))
+			self.lastNightlyTime = getNightlyTimestamp()
 			log.info('Inserted nightly')
 
 		addToBuildQueues(SubversionBuild('trunk', '/trunk', lastLog['author'], 'experimental'))
@@ -463,9 +464,6 @@ def main():
 	global BuildQueues
 	BuildQueues = []
 
-	global lastNightlyFile
-	lastNightlyFile = 'buildqueue.nightlytimestamp'
-
 	if sys.platform[:5] == 'linux':
 		BuildQueues.append(BuildQueue(QueueLen, 'linux-arm'))
 		BuildQueues.append(BuildQueue(QueueLen, 'linux-x86'))
@@ -498,7 +496,6 @@ def main():
 		return
 
 	lastNightlyTime = getNightlyTimestamp()
-
 	subversionBuilds = SubversionBuilds(lastNightlyTime)
 
 	while True:
