@@ -31,10 +31,7 @@ import HTMLgen
 ## TODO
 # -- add git repo support
 # -- replace while true with decent condition
-# -- add notification mechanism
-# -- add init / upstart / systemd scripts
 # -- remove log output from terminal
-# -- make svn build more robust (non resolving hostname kills this script)
 
 ##################################################################################
 class BuildQueue(Queue.PriorityQueue):
