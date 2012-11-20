@@ -406,8 +406,8 @@ def checkNightlyTimestamp(lastNightlyTime, currentTime):
 	delta = currentTime - lastNightlyTime
 
 	if(delta.total_seconds() > (24 * 3600)):
-		lastNightlyTime = datetime(date.today().year, date.today().month, date.today().day, 1, 0, 0)
-		updateNightlyTimestamp(lastNightlyTime)
+		newNightlyTime = datetime(date.today().year, date.today().month, date.today().day, 1, 0, 0)
+		updateNightlyTimestamp(newNightlyTime)
 		return True
 	else:
 		return False
