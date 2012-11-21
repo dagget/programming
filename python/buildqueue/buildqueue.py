@@ -392,6 +392,8 @@ def getNightlyTimestamp():
 	return lastNightlyTime
 
 def updateNightlyTimestamp(lastNightlyTime):
+	lastNightlyFile = 'buildqueue.nightlytimestamp'
+
 	try:
 		f = open(lastNightlyFile, 'wb')
 		pickle.dump(lastNightlyTime, f)
