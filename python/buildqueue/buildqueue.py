@@ -48,7 +48,12 @@ class BuildQueue(Queue.PriorityQueue):
 		self.lock.acquire()
 		try:
 			if(self.builds[item[2].name]):
-				log.debug('Branch ' + item[2].name + ' is already in the ' + self.platform + ' queue - skipping')
+				# the queue already contains the branch meant for nightly as 'experimental'
+				# change the buildtype of the one already in the queue to 'nightly'
+				if(item[2].buildtype == 'nightly'):
+					self.builds[item[2].name].setBuildType('nightly')
+				else:
+					log.debug('Branch ' + item[2].name + ' is already in the ' + self.platform + ' queue - skipping')
 		except KeyError:
 			# else put it in the buildqueue
 			self.put_nowait(item)
@@ -95,6 +100,9 @@ class Build:
 
 	def getName(self):
 		return self.name
+
+	def setBuildType(self, buildtype):
+		self.buildtype = buildtype
 
 class SubversionBuild(Build):
 	def __init__(self, name, path, lastauthor, buildtype):
