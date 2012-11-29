@@ -444,6 +444,7 @@ def main():
 		config.get('subversion', 'repository')
 		config.get('subversion', 'user')
 		config.get('subversion', 'password')
+		config.get('git', 'repository')
 	except ConfigParser.Error, e:
 		print str(e)
 		writeDefaultConfig()
