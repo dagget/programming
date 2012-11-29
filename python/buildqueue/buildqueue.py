@@ -84,10 +84,9 @@ class BuildQueue(Queue.PriorityQueue):
 			return self.list().replace("\n", "<br>")
 
 class Build:
-	def __init__(self, name, path, lastauthor, buildtype):
+	def __init__(self, name, path, buildtype):
 		self.name = name
 		self.path = path
-		self.lastauthor = lastauthor
 		self.buildtype = buildtype
 		self.newbuild = False
 		self.platform = ""
@@ -114,8 +113,8 @@ class Build:
 		pass
 
 class SubversionBuild(Build):
-	def __init__(self, name, path, lastauthor, buildtype):
-		Build.__init__(self, name, path, lastauthor, buildtype)
+	def __init__(self, name, path, buildtype):
+		Build.__init__(self, name, path, buildtype)
 		self.path = str(config.get('subversion', 'repository')) + path
 		self.buildscript = ""
 
@@ -167,9 +166,9 @@ class SubversionBuild(Build):
 			return
 
 class GitBuild(Build):
-	def __init__(self, name, path, lastauthor, buildtype):
-		Build.__init__(self, name, path, lastauthor, buildtype)
-		self.path = str(config.get('subversion', 'repository')) + path
+	def __init__(self, name, path, buildtype):
+		Build.__init__(self, name, path, buildtype)
+		self.path = str(config.get('git', 'repository')) + path
 		self.buildscript = ""
 
 	def prebuild(self):
@@ -268,24 +267,6 @@ class SubversionClient():
 		"""callback implementation for Subversion login"""
 		return True, config.get('subversion', 'user'), config.get('subversion', 'password'), True
 
-	def getSubversionLastLog(self, path):
-		log.debug('get lastlog in: ' + path)
-		self.lock.acquire()
-		logs = []
-
-		try:
-			logs = self.client.log(self.svnRepository + path, limit=1)
-		except pysvn.ClientError, e:
-			log.warning('Failed to get the last log: ' + str(e))
-
-		self.lock.release()
-		log.debug('get lastlog out: ' + path)
-
-		if logs:
-			return {'author' : logs[0].author, 'revision' : logs[0].revision, 'date' : logs[0].date}
-		else:
-			return {}
-
 	def getBranchList(self):
 		log.debug('get branchlist in:')
 		self.lock.acquire()
@@ -328,17 +309,13 @@ class SubversionBuilds(Builds):
 		Builds.__init__(self, lastNightlyTime)
 
 	def processBuilds(self):
-		lastLog = subversionClient.getSubversionLastLog('/trunk')
-		
-		# may have failed if server could not be reached
-		if lastLog:
-			# Nightly
-			if checkNightlyTimestamp(self.lastNightlyTime, datetime.now()):
-				addToBuildQueues(SubversionBuild('trunk', '/trunk', lastLog['author'], 'nightly'))
-				self.lastNightlyTime = getNightlyTimestamp()
-				log.info('Inserted nightly')
-			else:
-				addToBuildQueues(SubversionBuild('trunk', '/trunk', lastLog['author'], 'experimental'))
+		# Nightly
+		if checkNightlyTimestamp(self.lastNightlyTime, datetime.now()):
+			addToBuildQueues(SubversionBuild('trunk', '/trunk', 'nightly'))
+			self.lastNightlyTime = getNightlyTimestamp()
+			log.info('Inserted nightly')
+		else:
+			addToBuildQueues(SubversionBuild('trunk', '/trunk', 'experimental'))
 
 		branchList = subversionClient.getBranchList()
 
@@ -347,8 +324,7 @@ class SubversionBuilds(Builds):
 			# skip the first entry in the list as it is /branches (the directory in the repo)
 			for branch in branchList[1:]:
 				log.debug('Found branch: ' +  os.path.basename(branch[0].repos_path) + ' created at revision ' + str(branch[0].created_rev.number))
-				# Use the last_author from this tuple i.s.o. getting it from the getSubversionLastLog function
-				addToBuildQueues(SubversionBuild(os.path.basename(branch[0].repos_path), branch[0].repos_path, branch[0].last_author, 'experimental'))
+				addToBuildQueues(SubversionBuild(os.path.basename(branch[0].repos_path), branch[0].repos_path, 'experimental'))
 
 			# clean up builddirectories for which no branch exists anymore
 			for queue in BuildQueues[:]:
