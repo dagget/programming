@@ -12,6 +12,7 @@ from datetime import datetime,date
 import time
 import threading
 import pysvn
+import git
 import Queue
 import logging
 import errno
@@ -505,9 +506,11 @@ def main():
 
 	lastNightlyTime = getNightlyTimestamp()
 	subversionBuilds = SubversionBuilds(lastNightlyTime)
+	gitBuilds = GitBuilds(lastNightlyTime)
 
 	while True:
 		subversionBuilds.processBuilds()
+		gitBuilds.processBuilds()
 		time.sleep(30)
 
 	#stacktracer.trace_stop()
