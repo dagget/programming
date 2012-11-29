@@ -104,6 +104,15 @@ class Build:
 	def setBuildType(self, buildtype):
 		self.buildtype = buildtype
 
+	def isNewBuild(self):
+		return self.newbuild
+
+	def prebuild(self):
+		pass
+
+	def build(self):
+		pass
+
 class SubversionBuild(Build):
 	def __init__(self, name, path, lastauthor, buildtype):
 		Build.__init__(self, name, path, lastauthor, buildtype)
@@ -138,9 +147,6 @@ class SubversionBuild(Build):
 
 		return True
 
-	def isNewBuild(self):
-		return self.newbuild
-
 	def build(self):
 		# run the buildscript
 		try:
@@ -159,6 +165,18 @@ class SubversionBuild(Build):
 		except OSError, e:
 			log.warning(self.platform + " " + self.name + " execution failed: " + str(e))
 			return
+
+class GitBuild(Build):
+	def __init__(self, name, path, lastauthor, buildtype):
+		Build.__init__(self, name, path, lastauthor, buildtype)
+		self.path = str(config.get('subversion', 'repository')) + path
+		self.buildscript = ""
+
+	def prebuild(self):
+		pass
+
+	def build(self):
+		pass
 
 class QueueThreadClass(threading.Thread):
 	def __init__(self, queue, name):
