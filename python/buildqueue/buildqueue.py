@@ -485,23 +485,19 @@ def main():
 		log.warning("Unknown platform, don't know which buildqueue to start")
 		sys.exit()
 
+	Threads = []
 	# Start build queue threads
 	for queue in BuildQueues[:]:
-		thread = QueueThreadClass(queue, queue.getPlatform())
-		# let threads be killed when main is killed
-		thread.setDaemon(True)
-
-		try:
-			thread.start()
-		except (KeyboardInterrupt, SystemExit):
-			thread.stop()
-			thread.join()
-			return
+		Threads.append(QueueThreadClass(queue, queue.getPlatform()))
 
 	# Start socket to show buildqueues
-	thread = SocketThreadClass(config.getint('general', 'port'))
+	Threads.append(SocketThreadClass(config.getint('general', 'port')))
+
+	for thread in Threads[:]
 	try:
 		thread.start()
+		# let threads be killed when main is killed
+		thread.setDaemon(True)
 	except (KeyboardInterrupt, SystemExit):
 		thread.stop()
 		thread.join()
