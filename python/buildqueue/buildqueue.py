@@ -349,7 +349,7 @@ class SubversionBuilds(Builds):
 					except OSError, e:
 						log.warning(queue.getPlatform() + ': failed to remove build directory for: ' + builddirpath + '/' + builddir + ' :' + str(e))
 
-class GitBuilds():
+class GitBuilds(Builds):
 	def __init__(self, lastNightlyTime):
 		Builds.__init__(self, lastNightlyTime)
 
