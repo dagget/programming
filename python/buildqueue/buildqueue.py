@@ -497,9 +497,9 @@ def main():
 
 	for thread in Threads[:]:
 		try:
-			thread.start()
 			# let threads be killed when main is killed
 			thread.setDaemon(True)
+			thread.start()
 		except (KeyboardInterrupt, SystemExit):
 			thread.stop()
 			thread.join()
