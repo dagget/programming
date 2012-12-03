@@ -495,15 +495,15 @@ def main():
 	# Start socket to show buildqueues
 	Threads.append(SocketThreadClass(config.getint('general', 'port')))
 
-	for thread in Threads[:]
-	try:
-		thread.start()
-		# let threads be killed when main is killed
-		thread.setDaemon(True)
-	except (KeyboardInterrupt, SystemExit):
-		thread.stop()
-		thread.join()
-		return
+	for thread in Threads[:]:
+		try:
+			thread.start()
+			# let threads be killed when main is killed
+			thread.setDaemon(True)
+		except (KeyboardInterrupt, SystemExit):
+			thread.stop()
+			thread.join()
+			return
 
 	lastNightlyTime = getNightlyTimestamp()
 	subversionBuilds = SubversionBuilds(lastNightlyTime)
