@@ -84,6 +84,9 @@ class BuildQueue(Queue.PriorityQueue):
 	def asHTML(self):
 			return self.list().replace("\n", "<br>")
 
+	def setnoCurrent(self):
+		self.current = ""
+
 class Build:
 	def __init__(self, name, path, buildtype):
 		self.name = name
@@ -198,15 +201,18 @@ class QueueThreadClass(threading.Thread):
 
 				if(not item[2].prebuild()):
 					self.queue.task_done()
+					self.queue.setnoCurrent()
 					continue
 
 				if(item[2].isNewBuild()):
 					item[2].build()
 					self.queue.task_done()
+					self.queue.setnoCurrent()
 					continue
 				else:
 					log.debug(self.name + " " + item[2].getName() + " detected an old style buildscript - skipping")
 					self.queue.task_done()
+					self.queue.setnoCurrent()
 			else:
 				time.sleep(30)
 
