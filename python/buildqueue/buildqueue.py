@@ -49,10 +49,10 @@ class BuildQueue(Queue.PriorityQueue):
 		self.lock.acquire()
 		try:
 			if(self.builds[item[2].name]):
-				# the queue already contains the branch meant for nightly as 'experimental'
-				# change the buildtype of the one already in the queue to 'nightly'
+				# The queue already contains the branch meant for nightly, insert anyway
+                # The branch on the queue is 'experimental' as the timestamp check prevents multiple nightlies
 				if(item[2].buildtype == 'nightly'):
-					self.builds[item[2].name].setBuildType('nightly')
+			        self.put_nowait(item)
 				else:
 					log.debug('Branch ' + item[2].name + ' is already in the ' + self.platform + ' queue - skipping')
 		except KeyError:
