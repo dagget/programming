@@ -52,7 +52,7 @@ class BuildQueue(Queue.PriorityQueue):
 				# The queue already contains the branch meant for nightly, insert anyway
                 # The branch on the queue is 'experimental' as the timestamp check prevents multiple nightlies
 				if(item[2].buildtype == 'nightly'):
-			        self.put_nowait(item)
+			    	self.put_nowait(item)
 				else:
 					log.debug('Branch ' + item[2].name + ' is already in the ' + self.platform + ' queue - skipping')
 		except KeyError:
