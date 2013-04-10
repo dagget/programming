@@ -22,9 +22,9 @@ my $numbytes = 8;
 
 #my $lib_regexp=/^\d{8,8}\s+?(\d+?\s+?){3,3}[rwx-]{5,5}.*\.so.*/;
 #my $pmapline=qr/^([\dabcdef]{$numbytes})\s+?([\d-]+?)\s+?([\d-]+?)\s+?([\d-]+?)\s+?([rwx-]{5})\s+(.*)$/; # for normal pmap
-my  $pmapline=qr/^([\dabcdef]{$numbytes})\s+?([\d-]+?)\s+?([\d-]+?)\s+?([\d-]+?)\s+?([\d-]+?)\s+?([rwx-]{5})\s+(.*)$/; # for busybox pmap
+my  $pmapline=qr/^([\dabcdef]{$numbytes})\s+?([\d-]+?)\s+?([\d-]+?)\s+?([\d-]+?)\s+?([\d-]+?)\s+?([prwx-]{4})\s+(.*)$/; # for busybox pmap
 my $lib=qr/\.so/;
-my $stack=qr/\[\s+stack\s+\]/;
+my $stack=qr/\[\s*stack\s*\]/;
 my $anon=qr/\[\s+anon\s+\]/;
 
 my %libraries;
@@ -52,7 +52,8 @@ $sortbydata == 1 and $libsortby = 'data';
 $sortbyrss == 1 and $libsortby = 'rss';
 
 while(<FILE>){
-	if (/^(\d+):\s+(.*)/ .. /^total kB/){
+	#if (/^(\d+):\s+(.*)/ .. /^total kB/){
+	if (/^(\d+):\s+(.*)/ .. /^total/){
 		my %apprecord;
 		my $pid = $1;
 		my $appfull = $2;
@@ -61,7 +62,6 @@ while(<FILE>){
 
 		# skip kernel threads
 		defined $pid and ($appfull =~ /^\[.*\]$/) and next;
-
 		defined $pid and $applications{ $pid }{ 'name' } = $appfull;
 
 		# prot_none pages can be dropped as they don't take up physical memory
@@ -70,7 +70,7 @@ while(<FILE>){
 			my $size = $2;
 			my $rss = $3;
 			my $dirty = $4;
-            my $locked = $5;
+			my $locked = $5;
 			my $mode = $6;
 			my $name = $7;
 
@@ -124,7 +124,7 @@ for my $libra ( sort { $libraries{$a}{$libsortby} <=> $libraries{$b}{$libsortby}
 
 for my $appl( sort {$applications{$a}{$appsortby} <=> $applications{$b}{$appsortby}} keys %applications ) {
 	printf("%-8d: ", $appl);
-	printf("% 50.50s:", $applications{$appl}{'name'});
+	printf("% 50.50s: ", $applications{$appl}{'name'});
 	printf("%4s=%8.8s ", 'heap', $applications{$appl}{'heap'});
 	printf("%5s=%8.8s ", 'stack', $applications{$appl}{'stack'});
 	print "\n";
