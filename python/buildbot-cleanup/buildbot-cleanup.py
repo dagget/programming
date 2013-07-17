@@ -13,6 +13,7 @@ import logging
 import errno
 import logging.handlers
 import ConfigParser
+import re
 
 # prints stacktraces for each thread
 # acquired from http://code.activestate.com/recipes/577334-how-to-debug-deadlocked-multi-threaded-programs/
@@ -77,14 +78,42 @@ class SubversionClient():
 
 	def getBranchList(self):
 		branchList = []
+		strippedBranchList = []
 
-		# find branch names (returns a list of tuples)
+		# find branch names (returns a list of tuples -> (url, created_revision))
 		try:
 			branchList = self.client.list(self.svnRepository + '/branches', depth=pysvn.depth.immediates)
+			del branchList[0] # The first item is '/branches'
+
+			for branch in branchList:
+				strippedBranchList.append(os.path.basename(branch[0].repos_path))
+				logger.debug('Found branch: ' +  os.path.basename(branch[0].repos_path) + ' created at revision ' + str(branch[0].created_rev.number))
 		except pysvn.ClientError, e:
 			log.warning('Failed to get the branchlist: ' + str(e))
 
-		return branchList
+		return strippedBranchList
+
+	#svn propget svn:mergeinfo $trunk | cut -d'/' -f3 | cut -d':' -f1
+	def getIntegratedBranchList(self):
+		branchList = []
+		integratedBranchList = []
+
+		try:
+			# retuns dict with keys of url/path and values of the property
+			branchList = self.client.propget('svn:mergeinfo', self.svnRepository + '/trunk/', depth=pysvn.depth.empty)
+
+			for url,branches in branchList.iteritems():
+				# branches is a string of branchnames followed by the revisions
+				lines = branches.split('\n')
+				# now split each line (/branches/<branchname>:<merged revisions>) to retrieve only the branchnames
+				regex = re.compile('/branches/([^:]+).*')
+				for branch in (regex.split(line) for line in lines[:]):
+					integratedBranchList.append(branch[1])
+
+		except pysvn.ClientError, e:
+			log.warning('Failed to get the integrated branchlist: ' + str(e))
+
+		return integratedBranchList 
 
 ##################################################################################
 def main():
@@ -106,8 +135,6 @@ def main():
 	ch.setLevel(numeric_level)
 	formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s')#, datefmt= '%d-%m-%Y %H:%M:%S')
 	ch.setFormatter(formatter)
-
-	# add ch to logger
 	logger.addHandler(ch)
 
 	logger.debug('starting...')
@@ -115,40 +142,62 @@ def main():
 	global subversionClient
 	subversionClient = SubversionClient()
 
+	logger.info('#############################################')
+
+	# 1. Get a list of branches found on the server
 	branchList = subversionClient.getBranchList()
 
-	# may have failed if server could not be reached
-	if branchList:
-		# skip the first entry in the list as it is /branches (the directory in the repo)
-		for branch in branchList[1:]:
-			logger.debug('Found branch: ' +  os.path.basename(branch[0].repos_path) + ' created at revision ' + str(branch[0].created_rev.number))
+	logger.debug('#############################################')
+	# 2. Remove the integrated branches from the branchList to get a list of branches which will get commits and will be build
+	# The branchList now contains branches that have a builddirectory (actively committed to), and branches that don't (old
+	# unused branches that are not integrated yet)
+	logger.debug('Branches already integrated: ')
 
+	integratedBranchList = subversionClient.getIntegratedBranchList()
+
+	if integratedBranchList:
+		for branch in integratedBranchList:
+			try:
+				branchList.remove(branch)
+				logger.debug('Branch ' + branch + ' still exists in the repository, but is integrated')
+			except ValueError:
+				pass
+
+	# 3. Retreive a list of builddirectories per platform
 	for platform, path in config.getItems('buildpaths'):
 		absolutePath = os.path.normpath(os.path.expandvars(str(path) + '/'))
-		logger.debug('Found path: ' + platform + ' ' + absolutePath)
+		logger.info('#############################################')
+		logger.info('Found path: ' + platform + ' ' + absolutePath)
 		builddirList = os.listdir(absolutePath)
 		
-		# remove existing branches from the builddirlist
+		# 4. Remove branches from the builddirlist that have a corresponding branch on the repository
+		# If a branch does not have a builddirectory it is probably not active / old; report those.
 		logger.info('#############################################')
 		logger.info('Branches without builddirectory: ')
-		for branch in branchList[1:]:
-			builddirname = os.path.basename(branch[0].repos_path) + '-' + platform
+		for branch in branchList:
+			builddirname = branch + '-' + platform
 			try:
 				builddirList.remove(builddirname)
 			except:
 				logger.info(platform + ': ' + builddirname)
 
 		logger.info('#############################################')
+		
+		# 5. Remove builddirectories we definately want to keep; report if missing.
+		# Trunk
 		try:
 			builddirList.remove('trunk-' + platform)
 		except:
-			logger.info(platform + ': no builddir exists for trunk-' + platform)
+			logger.debug(platform + ': no builddirectory exists for trunk-' + platform)
 
+		# The checkout area
 		try:
 			builddirList.remove('build')
 		except:
-			logger.info(platform + ': no build dir exists')
+			logger.debug(platform + ': no checkoutdirectory exists')
 
+		# 6. Remove the build directories for which no branch exists on the repository,
+		# or if the branch has already been integrated (see step 2).
 		logger.info('Builddirectories without branch: ')
 		for builddir in builddirList[:]:
 			try:
