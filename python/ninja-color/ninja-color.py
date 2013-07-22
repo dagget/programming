@@ -13,6 +13,7 @@ warningline = re.compile('(: warning:)');
 brokeOn = ""
 
 for line in fileinput.input():
+	line = line.decode('utf-8')
 	lineList = errorline.split(line)
 	if len(lineList) > 1:
 		print lineList[0] + term.bold + term.red + lineList[1] + term.normal + lineList[2],
