@@ -38,4 +38,7 @@ for line in fileinput.input():
 	else:
 		print line,
 
-print "\nYour build broke on the following:\n" + term.bold + brokeOn + term.normal
+if len(brokeOn) == 0:
+	print "\nYour build ran OK.\n"
+else:
+	print "\nYour build broke on the following:\n" + term.bold + brokeOn + term.normal
