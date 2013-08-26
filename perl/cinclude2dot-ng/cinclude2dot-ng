@@ -36,7 +36,7 @@ my $hline = '#'x$wchar;
 my $debug = '';
 my $help = '';
 my @includepaths;
-my $maxlevel = 0;
+my $maxlevel = 1;
 my $outputfile = "./out.dot";
 my $exclude = "/^\$/";
 my $quotetypes =  "both";
