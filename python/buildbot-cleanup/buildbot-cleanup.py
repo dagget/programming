@@ -70,6 +70,7 @@ class SubversionClient():
 		self.client = pysvn.Client()
 		self.client.callback_get_login = self.get_login
 		self.svnRepository = str(config.getValue('subversion', 'repository'))
+		self.branchAuthor = {}
 
 	# callback needed for the subversion client
 	def get_login( realm, username, may_save ):
@@ -86,8 +87,10 @@ class SubversionClient():
 			del branchList[0] # The first item is '/branches'
 
 			for branch in branchList:
-				strippedBranchList.append(os.path.basename(branch[0].repos_path))
-				logger.debug('Found branch: ' +  os.path.basename(branch[0].repos_path) + ' created at revision ' + str(branch[0].created_rev.number))
+				bn = os.path.basename(branch[0].repos_path)
+				strippedBranchList.append(bn)
+				logger.debug('Found branch: ' +  bn + ' created at revision ' + str(branch[0].created_rev.number))
+				self.branchAuthor[bn] = branch[0].last_author
 		except pysvn.ClientError, e:
 			log.warning('Failed to get the branchlist: ' + str(e))
 
@@ -113,7 +116,7 @@ class SubversionClient():
 		except pysvn.ClientError, e:
 			log.warning('Failed to get the integrated branchlist: ' + str(e))
 
-		return integratedBranchList 
+		return integratedBranchList
 
 ##################################################################################
 def main():
@@ -124,7 +127,7 @@ def main():
 	# setup logging for both console and file
 	numeric_level = getattr(logging, str(config.getValue('general', 'loglevel')).upper(), None)
 	if not isinstance(numeric_level, int):
-		    raise ValueError('Invalid log level: %s' % config.getValue('general', 'loglevel'))
+		raise ValueError('Invalid log level: %s' % config.getValue('general', 'loglevel'))
 
 	global logger
 	logger = logging.getLogger('logger')
@@ -159,7 +162,7 @@ def main():
 		for branch in integratedBranchList:
 			try:
 				branchList.remove(branch)
-				logger.debug('Branch ' + branch + ' still exists in the repository, but is integrated')
+				logger.debug('Branch ' + branch + ' still exists in the repository, but is integrated. Last commit by: ' + subversionClient.branchAuthor.get(branch, '??') )
 			except ValueError:
 				pass
 
@@ -169,7 +172,7 @@ def main():
 		logger.info('#############################################')
 		logger.info('Found path: ' + platform + ' ' + absolutePath)
 		builddirList = os.listdir(absolutePath)
-		
+
 		# 4. Remove branches from the builddirlist that have a corresponding branch on the repository
 		# If a branch does not have a builddirectory it is probably not active / old; report those.
 		logger.info('#############################################')
@@ -182,7 +185,7 @@ def main():
 				logger.info(platform + ': ' + builddirname)
 
 		logger.info('#############################################')
-		
+
 		# 5. Remove builddirectories we definately want to keep; report if missing.
 		# Trunk
 		try:
