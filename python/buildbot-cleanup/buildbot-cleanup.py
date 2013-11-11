@@ -178,6 +178,12 @@ def main():
 		logger.info('#############################################')
 		logger.info('Branches without builddirectory: ')
 		for branch in branchList:
+			builddirname = branch
+			try:
+				builddirList.remove(builddirname)
+			except:
+				logger.info(platform + ': ' + builddirname)
+			# older branches will have a builddirectory with platform attached to the name
 			builddirname = branch + '-' + platform
 			try:
 				builddirList.remove(builddirname)
@@ -189,7 +195,7 @@ def main():
 		# 5. Remove builddirectories we definately want to keep; report if missing.
 		# Trunk
 		try:
-			builddirList.remove('trunk-' + platform)
+			builddirList.remove('trunk')
 		except:
 			logger.debug(platform + ': no builddirectory exists for trunk-' + platform)
 
