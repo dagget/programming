@@ -14,6 +14,7 @@ import errno
 import logging.handlers
 import ConfigParser
 import re
+import datetime, time
 
 # prints stacktraces for each thread
 # acquired from http://code.activestate.com/recipes/577334-how-to-debug-deadlocked-multi-threaded-programs/
@@ -96,6 +97,26 @@ class SubversionClient():
 
 		return strippedBranchList
 
+	def getInActiveBranchList(self):
+		branchList = []
+		strippedBranchList = []
+
+		# find branch names (returns a list of tuples -> (url, created_revision))
+		try:
+			branchList = self.client.list(self.svnRepository + '/branches', depth=pysvn.depth.immediates)
+			del branchList[0] # The first item is '/branches'
+
+			for branch in branchList:
+				tdiff = datetime.datetime.now() - datetime.datetime.fromtimestamp(branch[0].time)
+				if tdiff.days > 30:
+					bn = os.path.basename(branch[0].repos_path)
+					strippedBranchList.append(bn)
+					#logger.debug('Found branch: ' + bn + ' which had the latest commit > 30 days ago ' + str(tdiff.days) + ' on ' + time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(branch[0].time)))
+		except pysvn.ClientError, e:
+				log.warning('Failed to get the branchlist: ' + str(e))
+
+		return strippedBranchList
+
 	#svn propget svn:mergeinfo $trunk | cut -d'/' -f3 | cut -d':' -f1
 	def getIntegratedBranchList(self):
 		branchList = []
@@ -166,14 +187,30 @@ def main():
 			except ValueError:
 				pass
 
-	# 3. Retreive a list of builddirectories per platform
+	# 3. Remove the inactive (last commit > 30 days ago) from the branchList to get a list of branches that are actively used
+	# and will be build.
+	# The branchList now contains branches that have a builddirectory (actively committed to)
+	logger.debug('#############################################')
+	logger.debug('Branches older than 30 days: ')
+	inactiveBranchList = subversionClient.getInActiveBranchList()
+
+	logger.debug('#############################################')
+	if inactiveBranchList:
+		for branch in inactiveBranchList:
+			try:
+				branchList.remove(branch)
+				logger.debug('Branch ' + branch + ' still exists in the repository, but is inactive. Last commit by: ' + subversionClient.branchAuthor.get(branch, '??') )
+			except ValueError:
+				pass
+
+	# 4. Retreive a list of builddirectories per platform
 	for platform, path in config.getItems('buildpaths'):
 		absolutePath = os.path.normpath(os.path.expandvars(str(path) + '/'))
 		logger.info('#############################################')
 		logger.info('Found path: ' + platform + ' ' + absolutePath)
 		builddirList = os.listdir(absolutePath)
 
-		# 4. Remove branches from the builddirlist that have a corresponding branch on the repository
+		# 5. Remove branches from the builddirlist that have a corresponding branch on the repository
 		# If a branch does not have a builddirectory it is probably not active / old; report those.
 		logger.info('#############################################')
 		logger.info('Branches without builddirectory: ')
@@ -192,7 +229,7 @@ def main():
 
 		logger.info('#############################################')
 
-		# 5. Remove builddirectories we definately want to keep; report if missing.
+		# 6. Remove builddirectories we definately want to keep; report if missing.
 		# Trunk
 		try:
 			builddirList.remove('trunk')
@@ -205,8 +242,9 @@ def main():
 		except:
 			logger.debug(platform + ': no checkoutdirectory exists')
 
-		# 6. Remove the build directories for which no branch exists on the repository,
+		# 7. Remove the build directories for which no branch exists on the repository,
 		# or if the branch has already been integrated (see step 2).
+		# or if there hasn't been a commit in 30 days (see step 3).
 		logger.info('Builddirectories without branch: ')
 		for builddir in builddirList[:]:
 			try:
