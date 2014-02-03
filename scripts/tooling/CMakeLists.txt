@@ -12,6 +12,7 @@ ExternalProject_Add(
 	GIT_REPOSITORY git://cmake.org/cmake.git
 	GIT_TAG origin/next
 	BUILD_IN_SOURCE 1
+	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${TOOLING_DIR}
 	)
 
 ExternalProject_Add(
