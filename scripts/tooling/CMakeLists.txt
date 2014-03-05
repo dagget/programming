@@ -34,3 +34,38 @@ ExternalProject_Add(
 	BUILD_COMMAND make -j ${NUMCPU} SRCDIR=build CFGDIR=cfg
 	INSTALL_COMMAND make PREFIX=${TOOLING_DIR} install
 	)
+
+# Only download clang compiler-rt for use in llvm
+set(COMPILERRT_SOURCE ${CMAKE_BINARY_DIR}/src/compiler-rt)
+ExternalProject_Add(
+	compiler-rt
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}
+	GIT_REPOSITORY http://llvm.org/git/compiler-rt.git
+	CONFIGURE_COMMAND ""
+	BUILD_COMMAND ""
+	INSTALL_COMMAND ""
+	)
+
+set(CLANG_SOURCE ${CMAKE_BINARY_DIR}/src/clang)
+ExternalProject_Add(
+	clang
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}
+	GIT_REPOSITORY http://llvm.org/git/clang.git
+	CONFIGURE_COMMAND ""
+	BUILD_COMMAND ""
+	INSTALL_COMMAND ""
+	)
+
+ExternalProject_Add(
+	llvm
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}
+	GIT_REPOSITORY http://llvm.org/git/llvm.git
+	DEPENDS clang compiler-rt
+	CMAKE_CACHE_ARGS 
+		-DLLVM_INCLUDE_TOOLS:BOOL=ON
+		-DLLVM_INSTALL_TOOLCHAIN_ONLY:BOOL=ON
+		-DLLVM_TARGETS_TO_BUILD:STRING=X86;ARM
+		-DLLVM_EXTERNAL_CLANG_SOURCE_DIR:PATH=${CLANG_SOURCE}
+		-DLLVM_EXTERNAL_COMPILER_RT_SOURCE_DIR:PATH=${COMPILERRT_SOURCE}
+		-DCMAKE_INSTALL_PREFIX:PATH=${TOOLING_DIR}
+	)
