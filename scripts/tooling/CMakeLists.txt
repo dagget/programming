@@ -19,6 +19,7 @@ ExternalProject_Add(
 	ninja	
 	PREFIX ${CMAKE_CURRENT_BINARY_DIR}
 	GIT_REPOSITORY https://github.com/martine/ninja.git
+	GIT_TAG origin/master
 	BUILD_IN_SOURCE 1
 	CONFIGURE_COMMAND ""
 	BUILD_COMMAND "./bootstrap.py"
@@ -29,6 +30,7 @@ ExternalProject_Add(
 	cppcheck
 	PREFIX ${CMAKE_CURRENT_BINARY_DIR}
 	GIT_REPOSITORY https://github.com/danmar/cppcheck.git
+	GIT_TAG origin/master
 	BUILD_IN_SOURCE 1
 	CONFIGURE_COMMAND ""
 	BUILD_COMMAND make -j ${NUMCPU} SRCDIR=build CFGDIR=cfg
@@ -41,6 +43,7 @@ ExternalProject_Add(
 	compiler-rt
 	PREFIX ${CMAKE_CURRENT_BINARY_DIR}
 	GIT_REPOSITORY http://llvm.org/git/compiler-rt.git
+	GIT_TAG origin/master
 	CONFIGURE_COMMAND ""
 	BUILD_COMMAND ""
 	INSTALL_COMMAND ""
@@ -51,6 +54,7 @@ ExternalProject_Add(
 	clang
 	PREFIX ${CMAKE_CURRENT_BINARY_DIR}
 	GIT_REPOSITORY http://llvm.org/git/clang.git
+	GIT_TAG origin/master
 	CONFIGURE_COMMAND ""
 	BUILD_COMMAND ""
 	INSTALL_COMMAND ""
@@ -60,6 +64,7 @@ ExternalProject_Add(
 	llvm
 	PREFIX ${CMAKE_CURRENT_BINARY_DIR}
 	GIT_REPOSITORY http://llvm.org/git/llvm.git
+	GIT_TAG origin/master
 	DEPENDS clang compiler-rt
 	CMAKE_CACHE_ARGS 
 		-DLLVM_INCLUDE_TOOLS:BOOL=ON
