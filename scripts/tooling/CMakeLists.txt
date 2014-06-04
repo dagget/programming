@@ -78,3 +78,12 @@ ExternalProject_Add(
 		-DCMAKE_INSTALL_PREFIX:PATH=${TOOLING_DIR}
 		-DCMAKE_BUILD_TYPE:STRING=Release
 	)
+
+ExternalProject_Add(
+	astyle
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}
+	SVN_REPOSITORY https://svn.code.sf.net/p/astyle/code/trunk
+	CONFIGURE_COMMAND ""
+	BUILD_COMMAND make -j ${NUMCPU} -C ${CMAKE_CURRENT_BINARY_DIR}/src/astyle/AStyle/build/gcc/
+	INSTALL_COMMAND make -C ${CMAKE_CURRENT_BINARY_DIR}/src/astyle/AStyle/build/gcc/ prefix=${TOOLING_DIR} install
+	)
