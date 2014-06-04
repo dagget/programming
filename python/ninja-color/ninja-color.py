@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python -u
 
 from blessings import Terminal
 import fileinput
@@ -15,7 +15,7 @@ warningline    = re.compile('(: warning:)');
 buildline      = re.compile('^\[\d+/\d+\]');
 brokeOn = ""
 
-for line in fileinput.input():
+for line in fileinput.input(bufsize=0):
 	line = line.decode('utf-8')
 
 	if errorline.search(line): 
