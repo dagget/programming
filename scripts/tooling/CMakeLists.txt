@@ -35,9 +35,9 @@ ExternalProject_Add(
 	BUILD_IN_SOURCE 1
 	CONFIGURE_COMMAND ""
 	#TEST_BEFORE_INSTALL 1
-	BUILD_COMMAND make -j ${NUMCPU} SRCDIR=build CFGDIR=cfg
+	BUILD_COMMAND make -j ${NUMCPU} SRCDIR=build CFGDIR=${TOOLING_DIR}/bin/
 	TEST_COMMAND make test
-	INSTALL_COMMAND make PREFIX=${TOOLING_DIR} install
+	INSTALL_COMMAND make PREFIX=${TOOLING_DIR} CFGDIR=${TOOLING_DIR}/bin/ install
 	)
 
 # Only download clang compiler-rt for use in llvm
