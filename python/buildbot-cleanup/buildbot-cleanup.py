@@ -8,13 +8,13 @@
 import os
 import shutil
 import sys
-import pysvn
 import logging
 import errno
 import logging.handlers
 import ConfigParser
 import re
 import datetime, time
+from git import *
 
 # prints stacktraces for each thread
 # acquired from http://code.activestate.com/recipes/577334-how-to-debug-deadlocked-multi-threaded-programs/
@@ -34,9 +34,7 @@ class Config(ConfigParser.SafeConfigParser):
 		try:
 			self.get('general', 'loglevel')
 			self.items('buildpaths')
-			self.get('subversion', 'repository')
-			self.get('subversion', 'user')
-			self.get('subversion', 'password')
+			self.get('git', 'repository')
 		except ConfigParser.Error, e:
 			print str(e)
 			self.writeDefaultConfig()
@@ -47,10 +45,8 @@ class Config(ConfigParser.SafeConfigParser):
 			defaultConfig.write('[general]\n')
 			defaultConfig.write('# loglevel may be one of: debug, info, warning, error, critical\n')
 			defaultConfig.write('loglevel   : \n')
-			defaultConfig.write('[subversion]\n')
+			defaultConfig.write('[git]\n')
 			defaultConfig.write('repository : <repository url>\n')
-			defaultConfig.write('user       : <username>\n')
-			defaultConfig.write('password   : <password>\n')
 			defaultConfig.write('[buildpaths]\n')
 			defaultConfig.write('<platform> : <directory containing build directories>')
 			defaultConfig.close()
@@ -66,78 +62,73 @@ class Config(ConfigParser.SafeConfigParser):
 	def getItems(self, category):
 		return self.items(category)
 
-class SubversionClient():
-	def __init__(self):
-		self.client = pysvn.Client()
-		self.client.callback_get_login = self.get_login
-		self.svnRepository = str(config.getValue('subversion', 'repository'))
-		self.branchAuthor = {}
+class RepositoryError(Exception):
+	def __init__(self, value):
+		self.value = value
 
-	# callback needed for the subversion client
-	def get_login( realm, username, may_save ):
-		"""callback implementation for Subversion login"""
-		return True, config.getValue('subversion', 'user'), config.getValue('subversion', 'password'), True
+	def __str__(self):
+		return repr(self.value)
+
+class GitClient():
+	def __init__(self, repository, path):
+		if not os.path.exists(path):
+			self.repo = Repo.clone_from(repository, path)
+		else:
+			try:
+				self.repo = Repo(path)
+			except GitCommandError, e:
+				raise RepositoryError(str(e))
 
 	def getBranchList(self):
 		branchList = []
-		strippedBranchList = []
+		g = Git(self.repo.git_dir)
+		for head in g.ls_remote("--heads", "origin").split('\n'):
+			headname = head.split('/')[2]
+			#if head.name != 'origin/HEAD':
+			#	branchList.append(head.name)
+			branchList.append(headname)
 
-		# find branch names (returns a list of tuples -> (url, created_revision))
+		return branchList
+
+	def removeInactiveBranches(self, branchlist):
+		branchList = branchlist
+		g = Git(self.repo.git_dir)
+		for branch in branchList:
+			commit = g.log("--since={`date --date=\"$(date +%Y-%m-15) -1 month\" \"+%Y-%m-01\"`}", "-n1", "--", "origin", branch)
+			print commit
+
+	def switch(self, release, path):
+		if release == 'development':
+			self.repo.git.checkout('master')
+		else:
+			for tagref in repo.tags:
+				if tagref.name == release:
+					self.repo.git.checkout(release)
+				else:
+					return False
+		return True
+
+	def update(self):
 		try:
-			branchList = self.client.list(self.svnRepository + '/branches', depth=pysvn.depth.immediates)
-			del branchList[0] # The first item is '/branches'
+			self.repo.remotes.origin.pull()
+		except GitCommandError, e:
+			raise RepositoryError(str(e))
 
-			for branch in branchList:
-				bn = os.path.basename(branch[0].repos_path)
-				strippedBranchList.append(bn)
-				logger.debug('Found branch: ' +  bn + ' created at revision ' + str(branch[0].created_rev.number))
-				self.branchAuthor[bn] = branch[0].last_author
-		except pysvn.ClientError, e:
-			log.warning('Failed to get the branchlist: ' + str(e))
+	def commit(self, message):
+		if self.repo.is_dirty(True, True, True):
+			try:
+				self.repo.index.commit(message)
+				self.repo.remotes.origin.push()
+			except GitCommandError, e:
+				raise RepositoryError(str(e))
 
-		return strippedBranchList
-
-	def getInActiveBranchList(self):
-		branchList = []
-		strippedBranchList = []
-
-		# find branch names (returns a list of tuples -> (url, created_revision))
-		try:
-			branchList = self.client.list(self.svnRepository + '/branches', depth=pysvn.depth.immediates)
-			del branchList[0] # The first item is '/branches'
-
-			for branch in branchList:
-				tdiff = datetime.datetime.now() - datetime.datetime.fromtimestamp(branch[0].time)
-				if tdiff.days > 30:
-					bn = os.path.basename(branch[0].repos_path)
-					strippedBranchList.append(bn)
-					#logger.debug('Found branch: ' + bn + ' which had the latest commit > 30 days ago ' + str(tdiff.days) + ' on ' + time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(branch[0].time)))
-		except pysvn.ClientError, e:
-				log.warning('Failed to get the branchlist: ' + str(e))
-
-		return strippedBranchList
-
-	#svn propget svn:mergeinfo $trunk | cut -d'/' -f3 | cut -d':' -f1
-	def getIntegratedBranchList(self):
-		branchList = []
-		integratedBranchList = []
-
-		try:
-			# retuns dict with keys of url/path and values of the property
-			branchList = self.client.propget('svn:mergeinfo', self.svnRepository + '/trunk/', depth=pysvn.depth.empty)
-
-			for url,branches in branchList.iteritems():
-				# branches is a string of branchnames followed by the revisions
-				lines = branches.split('\n')
-				# now split each line (/branches/<branchname>:<merged revisions>) to retrieve only the branchnames
-				regex = re.compile('/branches/([^:]+).*')
-				for branch in (regex.split(line) for line in lines[:]):
-					integratedBranchList.append(branch[1])
-
-		except pysvn.ClientError, e:
-			log.warning('Failed to get the integrated branchlist: ' + str(e))
-
-		return integratedBranchList
+	def forceCommit(self, message):
+		if self.repo.is_dirty(True, True, True):
+			try:
+				self.repo.index.add("*")
+				self.repo.index.commit(message)
+			except GitCommandError, e:
+				raise RepositoryError("Can not commit local changes in configrepo during startup" + str(e))
 
 ##################################################################################
 def main():
@@ -163,49 +154,36 @@ def main():
 
 	logger.debug('starting...')
 
-	global subversionClient
-	subversionClient = SubversionClient()
-
 	logger.info('#############################################')
 
-	# 1. Get a list of branches found on the server
-	branchList = subversionClient.getBranchList()
+	for platform, path in config.getItems('buildpaths'):
+		logger.debug('platform: ' + platform)
+		global repo
+		try:
+			repo = GitClient(config.get('git', 'repository'), path)
+		except RepositoryError, e:
+			logger.error('could not connect to git remote: ' + e)
+			sys.exit()
 
-	logger.debug('#############################################')
+		# 1. Get a list of branches found on the server
+		branchList = repo.getBranchList()
+
+		logger.debug('#############################################')
+		for branch in branchList:
+			logger.debug('found branch: ' + branch)
+
 	# 2. Remove the integrated branches from the branchList to get a list of branches which will get commits and will be build
 	# The branchList now contains branches that have a builddirectory (actively committed to), and branches that don't (old
 	# unused branches that are not integrated yet)
-	logger.debug('Branches already integrated: ')
-
-	integratedBranchList = subversionClient.getIntegratedBranchList()
-
-	if integratedBranchList:
-		for branch in integratedBranchList:
-			try:
-				branchList.remove(branch)
-				logger.debug('Branch ' + branch + ' still exists in the repository, but is integrated. Last commit by: ' + subversionClient.branchAuthor.get(branch, '??') )
-			except ValueError:
-				pass
 
 	# 3. Remove the inactive (last commit > 30 days ago) from the branchList to get a list of branches that are actively used
 	# and will be build.
 	# The branchList now contains branches that have a builddirectory (actively committed to)
-	logger.debug('#############################################')
-	logger.debug('Branches older than 30 days: ')
-	inactiveBranchList = subversionClient.getInActiveBranchList()
-
-	logger.debug('#############################################')
-	if inactiveBranchList:
-		for branch in inactiveBranchList:
-			try:
-				branchList.remove(branch)
-				logger.debug('Branch ' + branch + ' still exists in the repository, but is inactive. Last commit by: ' + subversionClient.branchAuthor.get(branch, '??') )
-			except ValueError:
-				pass
+	#repo.removeInactiveBranches(branchList)
 
 	# 4. Retreive a list of builddirectories per platform
 	for platform, path in config.getItems('buildpaths'):
-		absolutePath = os.path.normpath(os.path.expandvars(str(path) + '/'))
+		absolutePath = os.path.normpath(os.path.expandvars(str(path) + '/../'))
 		logger.info('#############################################')
 		logger.info('Found path: ' + platform + ' ' + absolutePath)
 		builddirList = os.listdir(absolutePath)
@@ -220,22 +198,10 @@ def main():
 				builddirList.remove(builddirname)
 			except:
 				logger.info(platform + ': ' + builddirname)
-			# older branches will have a builddirectory with platform attached to the name
-			builddirname = branch + '-' + platform
-			try:
-				builddirList.remove(builddirname)
-			except:
-				logger.info(platform + ': ' + builddirname)
 
 		logger.info('#############################################')
 
 		# 6. Remove builddirectories we definately want to keep; report if missing.
-		# Trunk
-		try:
-			builddirList.remove('trunk')
-		except:
-			logger.debug(platform + ': no builddirectory exists for trunk-' + platform)
-
 		# The checkout area
 		try:
 			builddirList.remove('build')
