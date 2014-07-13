@@ -49,10 +49,10 @@ class BuildQueue(Queue.PriorityQueue):
 		self.lock.acquire()
 		try:
 			if(self.builds[item[2].name]):
-				# the queue already contains the branch meant for nightly as 'experimental'
-				# change the buildtype of the one already in the queue to 'nightly'
+				# The queue already contains the branch meant for nightly, insert anyway
+                # The branch on the queue is 'experimental' as the timestamp check prevents multiple nightlies
 				if(item[2].buildtype == 'nightly'):
-					self.builds[item[2].name].setBuildType('nightly')
+					self.put_nowait(item)
 				else:
 					log.debug('Branch ' + item[2].name + ' is already in the ' + self.platform + ' queue - skipping')
 		except KeyError:
@@ -83,6 +83,9 @@ class BuildQueue(Queue.PriorityQueue):
 
 	def asHTML(self):
 			return self.list().replace("\n", "<br>")
+
+	def setnoCurrent(self):
+		self.current = ""
 
 class Build:
 	def __init__(self, name, path, buildtype):
@@ -198,15 +201,18 @@ class QueueThreadClass(threading.Thread):
 
 				if(not item[2].prebuild()):
 					self.queue.task_done()
+					self.queue.setnoCurrent()
 					continue
 
 				if(item[2].isNewBuild()):
 					item[2].build()
 					self.queue.task_done()
+					self.queue.setnoCurrent()
 					continue
 				else:
 					log.debug(self.name + " " + item[2].getName() + " detected an old style buildscript - skipping")
 					self.queue.task_done()
+					self.queue.setnoCurrent()
 			else:
 				time.sleep(30)
 
@@ -349,7 +355,7 @@ class SubversionBuilds(Builds):
 					except OSError, e:
 						log.warning(queue.getPlatform() + ': failed to remove build directory for: ' + builddirpath + '/' + builddir + ' :' + str(e))
 
-class GitBuilds():
+class GitBuilds(Builds):
 	def __init__(self, lastNightlyTime):
 		Builds.__init__(self, lastNightlyTime)
 
@@ -495,15 +501,15 @@ def main():
 	# Start socket to show buildqueues
 	Threads.append(SocketThreadClass(config.getint('general', 'port')))
 
-	for thread in Threads[:]
-	try:
-		thread.start()
-		# let threads be killed when main is killed
-		thread.setDaemon(True)
-	except (KeyboardInterrupt, SystemExit):
-		thread.stop()
-		thread.join()
-		return
+	for thread in Threads[:]:
+		try:
+			# let threads be killed when main is killed
+			thread.setDaemon(True)
+			thread.start()
+		except (KeyboardInterrupt, SystemExit):
+			thread.stop()
+			thread.join()
+			return
 
 	lastNightlyTime = getNightlyTimestamp()
 	subversionBuilds = SubversionBuilds(lastNightlyTime)
