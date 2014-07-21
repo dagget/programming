@@ -87,3 +87,12 @@ ExternalProject_Add(
 	BUILD_COMMAND make -j ${NUMCPU} -C ${CMAKE_CURRENT_BINARY_DIR}/src/astyle/AStyle/build/gcc/
 	INSTALL_COMMAND make -C ${CMAKE_CURRENT_BINARY_DIR}/src/astyle/AStyle/build/gcc/ prefix=${TOOLING_DIR} install
 	)
+
+ExternalProject_Add(
+	cpplint
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}
+	SVN_REPOSITORY http://google-styleguide.googlecode.com/svn/trunk
+	CONFIGURE_COMMAND ""
+	BUILD_COMMAND ""
+	INSTALL_COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/src/cpplint/cpplint/cpplint.py ${TOOLING_DIR}/bin/
+	)
