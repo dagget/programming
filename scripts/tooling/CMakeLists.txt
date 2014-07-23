@@ -101,7 +101,7 @@ ExternalProject_Add(
 	vim	
 	PREFIX ${CMAKE_CURRENT_BINARY_DIR}
 	URL ftp://ftp.vim.org/pub/vim/unix/vim-7.4.tar.bz2
-	CONFIGURE_COMMAND ./configure --disable-gui --prefix=${TOOLING_DIR}/ --enable-cscope
+	CONFIGURE_COMMAND ./configure --disable-gui --prefix=${TOOLING_DIR}/ --with-features=huge --enable-pythoninterp --with-python-config-dir=/usr/lib/python2.7/config
 	BUILD_COMMAND make -j${NUMCPU}
 	INSTALL_COMMAND make install
 	BUILD_IN_SOURCE 1
