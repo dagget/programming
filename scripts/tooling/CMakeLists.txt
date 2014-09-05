@@ -91,7 +91,7 @@ ExternalProject_Add(
 ExternalProject_Add(
 	cpplint
 	PREFIX ${CMAKE_CURRENT_BINARY_DIR}
-	SVN_REPOSITORY http://google-styleguide.googlecode.com/svn/trunk
+	SVN_REPOSITORY https://google-styleguide.googlecode.com/svn/trunk
 	CONFIGURE_COMMAND ""
 	BUILD_COMMAND ""
 	INSTALL_COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/src/cpplint/cpplint/cpplint.py ${TOOLING_DIR}/bin/
