@@ -14,6 +14,7 @@ import logging.handlers
 import ConfigParser
 import re
 import datetime, time
+import glob
 from git import *
 
 # prints stacktraces for each thread
@@ -156,6 +157,7 @@ def main():
 
 	logger.info('#############################################')
 
+        # The following builds up a list of branches that may be removed from the buildslave output directories
 	for platform, path in config.getItems('buildpaths'):
 		logger.debug('platform: ' + platform)
 		global repo
@@ -192,23 +194,38 @@ def main():
 		# If a branch does not have a builddirectory it is probably not active / old; report those.
 		logger.info('#############################################')
 		logger.info('Branches without builddirectory: ')
-		for branch in branchList:
-			builddirname = branch
+
+                buildDirsToKeep = []
+
+		for builddirname in branchList:
+                        buildDirsToKeep.append(builddirname)
 			try:
 				builddirList.remove(builddirname)
 			except:
 				logger.info(platform + ': ' + builddirname)
 
+                # 6. Remove build results that have been sent to the dashboard
+		logger.info('#############################################')
+		logger.info('Buildresults that have been sent to the dashboard: ')
+		for builddirname in buildDirsToKeep:
+                    intermediates = glob.glob(absolutePath + '/' + builddirname + '/Testing/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9]')
+                    for intermediate in intermediates:
+                            try:
+                                    logger.info(platform + ': removing build results directory: ' + intermediate)
+                                    shutil.rmtree(intermediate)
+                            except OSError, e:
+                                    logger.warning(platform + ': failed to remove build results directory: ' + intermediate + ' :' + str(e))
+
 		logger.info('#############################################')
 
-		# 6. Remove builddirectories we definately want to keep; report if missing.
+		# 7. Remove builddirectories from the list we definately want to keep; report if missing.
 		# The checkout area
 		try:
 			builddirList.remove('build')
 		except:
 			logger.debug(platform + ': no checkoutdirectory exists')
 
-		# 7. Remove the build directories for which no branch exists on the repository,
+		# 8. Remove the build directories for which no branch exists on the repository,
 		# or if the branch has already been integrated (see step 2).
 		# or if there hasn't been a commit in 30 days (see step 3).
 		logger.info('Builddirectories without branch: ')
