@@ -35,9 +35,9 @@ ExternalProject_Add(
 	BUILD_IN_SOURCE 1
 	CONFIGURE_COMMAND ""
 	#TEST_BEFORE_INSTALL 1
-	BUILD_COMMAND make -j ${NUMCPU} SRCDIR=build CFGDIR=cfg
+	BUILD_COMMAND make -j ${NUMCPU} SRCDIR=build CFGDIR=${TOOLING_DIR}/bin/
 	TEST_COMMAND make test
-	INSTALL_COMMAND make PREFIX=${TOOLING_DIR} install
+	INSTALL_COMMAND make PREFIX=${TOOLING_DIR} CFGDIR=${TOOLING_DIR}/bin/ install
 	)
 
 # Only download clang compiler-rt for use in llvm
@@ -76,4 +76,34 @@ ExternalProject_Add(
 		-DLLVM_EXTERNAL_CLANG_SOURCE_DIR:PATH=${CLANG_SOURCE}
 		-DLLVM_EXTERNAL_COMPILER_RT_SOURCE_DIR:PATH=${COMPILERRT_SOURCE}
 		-DCMAKE_INSTALL_PREFIX:PATH=${TOOLING_DIR}
+		-DCMAKE_BUILD_TYPE:STRING=Release
+	)
+
+ExternalProject_Add(
+	astyle
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}
+	SVN_REPOSITORY https://svn.code.sf.net/p/astyle/code/trunk
+	CONFIGURE_COMMAND ""
+	BUILD_COMMAND make -j ${NUMCPU} -C ${CMAKE_CURRENT_BINARY_DIR}/src/astyle/AStyle/build/gcc/
+	INSTALL_COMMAND make -C ${CMAKE_CURRENT_BINARY_DIR}/src/astyle/AStyle/build/gcc/ prefix=${TOOLING_DIR} install
+	)
+
+ExternalProject_Add(
+	cpplint
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}
+	SVN_REPOSITORY https://google-styleguide.googlecode.com/svn/trunk
+	CONFIGURE_COMMAND ""
+	BUILD_COMMAND ""
+	INSTALL_COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/src/cpplint/cpplint/cpplint.py ${TOOLING_DIR}/bin/
+	)
+
+ExternalProject_Add(
+	vim	
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}
+	#URL ftp://ftp.vim.org/pub/vim/unix/vim-7.4.tar.bz2
+	URL http://vim.googlecode.com/archive/v7-4-383.tar.gz
+	CONFIGURE_COMMAND ./configure --disable-gui --prefix=${TOOLING_DIR}/ --with-features=huge --enable-pythoninterp --with-python-config-dir=/usr/lib/python2.7/config
+	BUILD_COMMAND make -j${NUMCPU}
+	INSTALL_COMMAND make install
+	BUILD_IN_SOURCE 1
 	)
