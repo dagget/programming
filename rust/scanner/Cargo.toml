@@ -4,4 +4,4 @@ version = "0.1.0"
 authors = ["Micha Hergarden <micha.hergarden@gmail.com>"]
 
 [dependencies]
-getopts="0.2.14"
+clap = "*"
