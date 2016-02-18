@@ -2,23 +2,25 @@ extern crate clap;
 
 //use std::env;
 //use std::io;
-use std::fs::{self, DirEntry};
+//use std::fs::{self, DirEntry};
+use std::fs;
 use std::path::Path;
-use clap::{Arg, App, SubCommand};
+use clap::{Arg, App};
 
-fn collect_files(input: &str) -> &Vec<&std::path::Path> {
-	let dir = Path::new(input);
-	let mut result = Vec::<&std::path::Path>::new();
+//fn collect_files(input: &str) -> Vec<&std::path::Path> {
+fn collect_files(input: &str) {
+    let paths = fs::read_dir(Path::new(input));
 
-	if dir.is_dir() {
-		println!("yep");
-		result.push(dir);
-	} else {
-		println!("nope");
-		result.push(dir);
-	}
+	//let dir = Path::new(input);
+	//let mut result = Vec::<&std::path::Path>::new();
 
-	result.clone();
+	//if dir.is_dir() {
+	//	result.push(dir)
+	//} else {
+	//	result.push(dir)
+	//}
+
+	//result.clone()
 }
 
 fn main() {
