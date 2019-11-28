@@ -1,1 +1,7 @@
 *.swp
+build/
+internal-hashtable/build/
+internal-hashtable/help/
+internal-hashtable/subprojects/
+c/internal-hashtable/help/
+c/internal-hashtable/subprojects/
