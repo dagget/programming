@@ -1,2 +1,5 @@
 target/
 */Cargo.lock
+*/.exercism
+*/README.md
+*/tests
