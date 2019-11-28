@@ -1,0 +1,1 @@
+executable('negbin', 'nb.cpp')
