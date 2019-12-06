@@ -23,45 +23,32 @@ impl cmp::PartialEq for Clock {
 
 impl Clock {
     pub fn new(hours: i32, minutes: i32) -> Self {
-        // reduce to minutes for easy conversion to 24h clock
+        // reduce to minutes for easy removal of day overflow
         let mut tmp: i32 = minutes + (hours * 60);
         let day = 24*60;
-        let mut h: i32;
-        let mut m: i32;
 
         // if negative remove days
         while tmp < -day {
             tmp += day;
         }
-        println!("1 {}", tmp);
 
         // if poositive remove days
         while tmp > day {
             tmp -= day;
         }
-        println!("2 {}", tmp);
 
         // convert back to hours and minutes
-        // rust rounds down in
-        // conversion to i32
-        h = tmp/60;
-        m = tmp - (h*60);
-        println!("3 {} {} {}", tmp, h, m);
+        // rust rounds down in conversion to i32
+        let mut h: i32 = tmp/60;
+        let mut m: i32 = tmp - (h*60);
 
-        // if time was negative then turn positive
-        if h <= 0 {
-            h += 24;
-        }
+        // if time was negative then convert to positive
+        h += 24;
         if m < 0 {
             h -= 1;
             m += 60;
         }
-        println!("4 {} {} {}", tmp, h, m);
-
-        if h == 24 {
-            h = 0;
-        }
-        println!("5 {} {} {}", tmp, h, m);
+        h %= 24;
 
         Clock {
             hours : h,
@@ -77,7 +64,6 @@ impl Clock {
 
         let h: i32 = m/60;
         m -= h*60;
-
         Clock::new(h, m)
     }
 }
