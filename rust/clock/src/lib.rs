@@ -32,7 +32,7 @@ impl Clock {
             tmp += day;
         }
 
-        // if poositive remove days
+        // if positive remove days
         while tmp > day {
             tmp -= day;
         }
