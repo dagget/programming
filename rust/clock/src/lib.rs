@@ -54,7 +54,7 @@ impl Clock {
         }
         if m < 0 {
             h -= 1;
-            m = 60 + m;
+            m += 60;
         }
         println!("4 {} {} {}", tmp, h, m);
 
@@ -76,7 +76,7 @@ impl Clock {
         m += minutes;
 
         let h: i32 = m/60;
-        m = m - (h*60);
+        m -= h*60;
 
         Clock::new(h, m)
     }
