@@ -15,9 +15,7 @@ impl fmt::Display for Clock {
 
 impl cmp::PartialEq for Clock {
     fn eq(&self, other: &Self) -> bool {
-        // when comparing, reduce the 'other' clock by removing day overflow
-        // and hour overflow
-        self.hours == other.hours % 24 && self.minutes == other.minutes % 60
+        self.hours == other.hours && self.minutes == other.minutes
     }
 }
 
