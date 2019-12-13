@@ -6,5 +6,5 @@ pub fn square(s: u32) -> u64 {
 }
 
 pub fn total() -> u64 {
-    (1 .. 65).map(|x| square(x)).sum()
+    (1 .. 65).map(square).sum()
 }
