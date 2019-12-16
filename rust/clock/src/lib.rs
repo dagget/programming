@@ -36,9 +36,6 @@ impl Clock {
     }
 
     pub fn add_minutes(&self, minutes: i32) -> Self {
-        // Converting to i32 will round down automatically
-        let h: i32 = minutes/60 + self.hours;
-        let m: i32 = (minutes - ((minutes/60)*60)) + self.minutes;
-        Clock::new(h, m)
+        Clock::new(self.hours, self.minutes + minutes)
     }
 }
