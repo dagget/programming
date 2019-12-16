@@ -1,7 +1,6 @@
 use std::fmt;
-use std::cmp;
 
-#[derive(Debug)]
+#[derive(Debug,PartialEq)]
 pub struct Clock{
     hours: i32,
     minutes: i32
@@ -13,55 +12,33 @@ impl fmt::Display for Clock {
     }
 }
 
-impl cmp::PartialEq for Clock {
-    fn eq(&self, other: &Self) -> bool {
-        self.hours == other.hours && self.minutes == other.minutes
-    }
-}
-
 impl Clock {
     pub fn new(hours: i32, minutes: i32) -> Self {
         // reduce to minutes for easy removal of day overflow
-        let mut tmp: i32 = minutes + (hours * 60);
-        let day = 24*60;
+        let mut total_minutes: i32 = minutes + (hours * 60);
+        const DAY: i32 = 24*60;
 
-        // if negative remove days
-        while tmp < -day {
-            tmp += day;
-        }
+        total_minutes %= DAY;
 
-        // if positive remove days
-        while tmp > day {
-            tmp -= day;
+        // Rust % is the remainder operator, not modulus
+        // total_minutes might still be negative.
+        while total_minutes < 0 {
+            total_minutes += DAY;
         }
 
         // convert back to hours and minutes
-        // rust rounds down in conversion to i32
-        let mut h: i32 = tmp/60;
-        let mut m: i32 = tmp - (h*60);
-
-        // if time was negative then convert to positive
-        h += 24;
-        if m < 0 {
-            h -= 1;
-            m += 60;
-        }
-        h %= 24;
-
         Clock {
-            hours : h,
-            minutes : m
+            hours : total_minutes/60,
+            // total_minutes/60 rounds down during conversion
+            // to i32.
+            minutes : total_minutes - ((total_minutes/60)*60)
         }
     }
 
     pub fn add_minutes(&self, minutes: i32) -> Self {
-        // convert back to minutes for simple calc
-        // m might overflow
-        let mut m: i32 = (self.hours * 60) + self.minutes;
-        m += minutes;
-
-        let h: i32 = m/60;
-        m -= h*60;
+        // Converting to i32 will round down automatically
+        let h: i32 = minutes/60 + self.hours;
+        let m: i32 = (minutes - ((minutes/60)*60)) + self.minutes;
         Clock::new(h, m)
     }
 }
