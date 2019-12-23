@@ -27,7 +27,7 @@ fn is_divisible_by_7(n: u64) -> bool {
 }
 
 fn is_prime(n: u64) -> bool {
-     for i in 2 .. n {
+     for i in 2 .. n/2 {
          if n % i == 0 {
              return false;
          }
@@ -60,9 +60,15 @@ pub fn factors(n: u64) -> Vec<u64> {
             remainder /= 7;
             continue;
         }
+
+        if is_prime(remainder) {
+            factors.push(remainder);
+            break;
+        }
+
         // no divisibility rule available
         // use brute force
-        for divisor in 11 ..= remainder {
+        for divisor in 11 ..= remainder/2 {
             if is_prime(divisor){
                 if remainder % divisor == 0 {
                     factors.push(divisor);
