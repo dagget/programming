@@ -1,86 +1,45 @@
-fn is_divisable_by_2(n: u64) -> bool {
-    n & 0x1 == 0
-}
-
-fn is_divisible_by_3(n: u64) -> bool {
-    let mut sum: u64 = 0;
-    let mut rem = n;
-
-    while rem > 0 {
-        sum += rem % 10;
-        rem /= 10;
-    }
-    sum % 3 == 0
-}
-
-fn is_divisible_by_5(n: u64) -> bool {
-    let last_digit = n % 10;
-    last_digit == 5 || last_digit == 0
-}
-
-fn is_divisible_by_7(n: u64) -> bool {
-    let last_digit = n % 10;
-    let other_digits = n / 10;
-
-    other_digits.checked_sub(last_digit * 2).unwrap_or(n) % 7 == 0
-}
-
-fn is_prime(n: u64) -> bool {
-    for i in 2..n / 2 {
-        if n % i == 0 {
-            return false;
-        }
-    }
-    true
-}
+#![feature(test)]
+extern crate test;
 
 pub fn factors(n: u64) -> Vec<u64> {
     let mut factors: Vec<u64> = vec![];
     let mut remainder: u64 = n;
 
-    while remainder > 1 {
-        // try to reduce the remainder
-        // by applying divisibility rules.
-        if is_divisable_by_2(remainder) {
-            factors.push(2);
-            remainder /= 2;
-            continue;
-        }
-        if is_divisible_by_3(remainder) {
-            factors.push(3);
-            remainder /= 3;
-            continue;
-        }
-        if is_divisible_by_5(remainder) {
-            factors.push(5);
-            remainder /= 5;
-            continue;
-        }
-        if is_divisible_by_7(remainder) {
-            factors.push(7);
-            remainder /= 7;
-            continue;
-        }
+    // 0 and 1 are not considered prime
+    if n < 2 {
+        return factors;
+    }
 
-        // brute forcing is expensive, so
-        // 'quick' check for prime first
-        if is_prime(remainder) {
-            factors.push(remainder);
+    // only calculate up to n/2 as factor
+    // multiplication mirrors
+    for divisor in 2 ..= n/2 {
+        // start with lowest prime first
+        // to ensure non-primes are factored
+        // out automatically.
+        while remainder % divisor == 0 {
+            remainder /= divisor;
+            factors.push(divisor);
+        }
+        if remainder <= 1 {
             break;
-        }
-
-        // no divisibility rule available
-        // use brute force: just try out all
-        // prime divisors.
-        for divisor in 11..=remainder / 2 {
-            if is_prime(divisor) && remainder % divisor == 0 {
-                factors.push(divisor);
-                remainder /= divisor;
-                break;
-            }
         }
     }
 
-    factors.sort();
+    // if remainder (or n) is a prime 
+    if remainder > 1 {
+        factors.push(remainder);
+    }
+
     factors
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use test::Bencher;
+
+    #[bench]
+    fn bench_factors(b: &mut Bencher) {
+        b.iter(|| factors(93_819_012_551));
+    }
 }

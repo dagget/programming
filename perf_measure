@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+perf record -g $1
+perf script | ~/FlameGraph/stackcollapse-perf.pl --all | ~/FlameGraph/flamegraph.pl --title "$1" > out.svg
