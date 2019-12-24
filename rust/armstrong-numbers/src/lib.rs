@@ -1,5 +1,3 @@
-use std::convert::TryInto;
-
 pub fn is_armstrong_number(num: u32) -> bool {
     let mut n = num;
     let mut v = vec![];
@@ -10,6 +8,5 @@ pub fn is_armstrong_number(num: u32) -> bool {
     }
 
     v.iter()
-     .map(|&x| x.pow(v.len().try_into().unwrap()))
-     .sum::<u32>() == num
+     .fold(0, |s,x| s + x.pow(v.len() as u32)) == num
 }
