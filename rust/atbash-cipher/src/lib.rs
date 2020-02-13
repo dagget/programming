@@ -3,7 +3,7 @@ const SZ : usize = ALPHABET.len() - 1;
 
 /// "Encipher" with the Atbash cipher.
 pub fn encode(plain: &str) -> String {
-    let mut encoded = plain.to_lowercase().to_string();
+    let mut encoded = plain.to_lowercase();
     encoded = encoded.chars().filter(|x| x.is_alphanumeric()).collect();
     encoded = encoded 
              .chars()
