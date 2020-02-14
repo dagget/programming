@@ -5,9 +5,7 @@ pub fn brackets_are_balanced(string: &str) -> bool {
         string
         .chars()
         .map( |x| match x {
-            '(' => {stack.push('('); true},
-            '{' => {stack.push('{'); true},
-            '[' => {stack.push('['); true},
+            '(' | '{' | '[' => {stack.push(x); true},
             ']' => stack.pop() == Some('['),
             '}' => stack.pop() == Some('{'),
             ')' => stack.pop() == Some('('),
