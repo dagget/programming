@@ -2,9 +2,9 @@ extern crate rand;
 
 use rand::Rng;
 
-
-pub struct Robot{
-    name : String,
+#[derive(Default)]
+pub struct Robot {
+    name: String,
 }
 
 impl Robot {
@@ -31,14 +31,14 @@ impl Robot {
                 let idx = rng.gen_range(0, CHARSET.len());
                 CHARSET[idx] as char
             })
-        .collect();
+            .collect();
 
         let numbers: String = (0..3)
             .map(|_| {
                 let idx = rng.gen_range(0, NUMSET.len());
                 NUMSET[idx] as char
             })
-        .collect();
+            .collect();
 
         self.name = letters + &numbers;
     }
