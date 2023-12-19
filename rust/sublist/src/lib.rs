@@ -19,9 +19,9 @@ pub fn sublist<T: PartialEq>(_first_list: &[T], _second_list: &[T]) -> Compariso
     }
 
 
-    if longlist.len() == 0 && shortlist.len() == 0 { return Comparison::Equal }
-    if _first_list.len() == 0 { return Comparison::Sublist } 
-    if _second_list.len() == 0 { return Comparison::Superlist }
+    if longlist.is_empty() && shortlist.is_empty() { return Comparison::Equal }
+    if _first_list.is_empty() { return Comparison::Sublist } 
+    if _second_list.is_empty() { return Comparison::Superlist }
     if longlist.len() == shortlist.len() && longlist == shortlist { return Comparison::Equal }
 
 
